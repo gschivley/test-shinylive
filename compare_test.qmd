@@ -14,8 +14,8 @@ categories:
 ```{python}
 # | context: setup
 from shiny.express import ui
-from shiny import *
 from shinywidgets import render_altair
+from shiny import reactive
 import pandas as pd
 from pathlib import Path
 import altair as alt
@@ -172,19 +172,11 @@ def chart_total_cap(
 
 @render_altair
 def cap_chart():
-    import altair as alt
 
     df = dat()
-    # chart = (
-    #     alt.Chart(df)
-    #     .mark_bar()
-    #     .encode(x=alt.X(f"{input.var()}:Q"), y="planning_year", column="agg_zone")
-    #     .properties(height=300)
-    # )
     chart = chart_total_cap(
         df, x_var=input.x_var(), col_var=input.col_var(), row_var=input.row_var()
     )
-    # return alt.JupyterChart(chart)
     return chart
 
 ```
