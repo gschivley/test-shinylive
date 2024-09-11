@@ -4,3 +4,4 @@ anywidget
 jsonschema
 shinywidgets
 shiny
+yaml
