@@ -53,7 +53,7 @@ VAR_ABBR_MAP = {
 }
 ```
 ## Row
-```{python}
+<!-- ```{python}
 #| title: Inputs
 ui.input_selectize(
     "cap_filter", "Build Type", choices=["new", "existing", "all"], selected="all"
@@ -81,7 +81,7 @@ ui.input_selectize(
     choices=["full-base-200", "full-current-policies", "full-current-policies-retire"],
     multiple=True,
 )
-```
+``` -->
 ## Row
 ```{python}
 
@@ -91,12 +91,7 @@ def dat():
     infile = "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/endogenous_retirement/capacity.csv"
     df = pd.read_csv(infile)
 
-    if input.cap_filter() == "new":
-        df.loc[df["new_build"] == True, :]
-    if input.cap_filter() == "existing":
-        df.loc[df["new_build"] == False, :]
-
-    return df.loc[df["case"].isin(input.case()), :]
+    return df #.loc[df["case"].isin(input.case()), :]
 
 
 def title_case(s: str) -> str:
@@ -172,10 +167,18 @@ def chart_total_cap(
 
 @render_altair
 def cap_chart():
+    import altair as alt
 
     df = dat()
+    # if input.cap_filter() == "new":
+    #     _df = df.loc[df["new_build"] == True, :]
+    # elif input.cap_filter() == "existing":
+    #     _df = df.loc[df["new_build"] == False, :]
+    # else:
+    #     _df = df.copy()
     chart = chart_total_cap(
-        df, x_var=input.x_var(), col_var=input.col_var(), row_var=input.row_var()
+        # _df, x_var=input.x_var(), col_var=input.col_var(), row_var=input.row_var()
+        df, x_var="model", col_var="case", row_var="planning_year"
     )
     return chart
 
