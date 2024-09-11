@@ -88,7 +88,7 @@ ui.input_selectize(
 @reactive.calc
 def dat():
 
-    infile = "https://github.com/gschivley/MIP_results_comparison/main/compiled_results/endogenous_retirement/avg_new_total_cap.csv"
+    infile = "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/endogenous_retirement/capacity.csv"
     df = pd.read_csv(infile)
 
     if input.cap_filter() == "new":
@@ -184,7 +184,7 @@ def cap_chart():
     chart = chart_total_cap(
         df, x_var=input.x_var(), col_var=input.col_var(), row_var=input.row_var()
     )
-    return alt.JupyterChart(chart)
-    # return chart
+    # return alt.JupyterChart(chart)
+    return chart
 
 ```
