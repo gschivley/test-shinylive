@@ -13,7 +13,7 @@ categories:
 
 ```{python}
 # | context: setup
-from shiny.express import input, ui
+from shiny.express import ui
 from shiny import *
 from shinywidgets import render_altair
 import pandas as pd
