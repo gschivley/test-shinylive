@@ -1,0 +1,6 @@
+pandas
+altair
+anywidget
+jsonschema
+shinywidgets
+shiny
