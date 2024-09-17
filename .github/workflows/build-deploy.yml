@@ -59,7 +59,7 @@ jobs:
             "sha256": "43d1658f1043b8c95cd350b2f5deccb123fd37810a36f656d6163aefe8163705",
             "depends": ["psygnal"],
             "imports": ["anywidget"]
-          }' _site/shinylive/pyodide-lock.json > _site/shinylive/pyodide-lock.json.tmp && mv _site/shinylive/pyodide-lock.json.tmp _site/shinylive/pyodide-lock.json
+          }' _site/shinylive/pyodide/pyodide-lock.json > _site/shinylive/pyodide/pyodide-lock.json.tmp && mv _site/shinylive/pyodide/pyodide-lock.json.tmp _site/shinylive/pyodide/pyodide-lock.json
           
           jq '.packages.psygnal = {
             "name": "psygnal",
@@ -69,7 +69,7 @@ jobs:
             "sha256": "04255fe28828060a80320f8fda937c47bc0c21ca14f55a13eb7c494b165ea395",
             "depends": [],
             "imports": ["psygnal"]
-          }' _site/shinylive/pyodide-lock.json > _site/shinylive/pyodide-lock.json.tmp && mv _site/shinylive/pyodide-lock.json.tmp _site/shinylive/pyodide-lock.json
+          }' _site/shinylive/pyodide/pyodide-lock.json > _site/shinylive/pyodide/pyodide-lock.json.tmp && mv _site/shinylive/pyodide/pyodide-lock.json.tmp _site/shinylive/pyodide/pyodide-lock.json
       
       # =====================================================
       # Upload _site/ artifact
