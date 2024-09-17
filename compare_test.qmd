@@ -19,6 +19,7 @@ from shiny import reactive
 import pandas as pd
 from pathlib import Path
 import altair as alt
+import anywidget
 import pyodide_http
 
 pyodide_http.patch_all()

@@ -41,6 +41,36 @@ jobs:
       - name: Create shinylive site
         run: shinylive export _build _site
 
+      # Step to download pre-built wheels
+      - name: Download pre-built wheels for anywidget and psygnal
+        run: |
+          mkdir -p _site/shinylive/pyodide
+          curl -L https://files.pythonhosted.org/packages/1a/5a/7b024920cca385eb9b56bc63edf0a647de208346bfac5b339b544733d53a/anywidget-0.9.13-py3-none-any.whl -o _site/shinylive/pyodide/anywidget-0.9.13-py3-none-any.whl
+          curl -L https://files.pythonhosted.org/packages/68/76/d5c5bf5a932ec2dcdc4a23565815a1cc5fd96b03b26ff3f647cdff5ea62c/psygnal-0.11.1-py3-none-any.whl -o _site/shinylive/pyodide/psygnal-0.11.1-py3-none-any.whl
+
+      # Step to update the pyodide-lock.json file
+      - name: Update pyodide-lock.json with new packages
+        run: |
+          jq '.packages.anywidget = {
+            "name": "anywidget",
+            "version": "0.9.13",
+            "file_name": "anywidget-0.9.13-py3-none-any.whl",
+            "install_dir": "site",
+            "sha256": "43d1658f1043b8c95cd350b2f5deccb123fd37810a36f656d6163aefe8163705",
+            "depends": ["psygnal"],
+            "imports": ["anywidget"]
+          }' _site/shinylive/pyodide-lock.json > _site/shinylive/pyodide-lock.json.tmp && mv _site/shinylive/pyodide-lock.json.tmp _site/shinylive/pyodide-lock.json
+          
+          jq '.packages.psygnal = {
+            "name": "psygnal",
+            "version": "0.11.1",
+            "file_name": "psygnal-0.11.1-py3-none-any.whl",
+            "install_dir": "site",
+            "sha256": "04255fe28828060a80320f8fda937c47bc0c21ca14f55a13eb7c494b165ea395",
+            "depends": [],
+            "imports": ["psygnal"]
+          }' _site/shinylive/pyodide-lock.json > _site/shinylive/pyodide-lock.json.tmp && mv _site/shinylive/pyodide-lock.json.tmp _site/shinylive/pyodide-lock.json
+      
       # =====================================================
       # Upload _site/ artifact
       # =====================================================
