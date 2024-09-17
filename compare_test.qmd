@@ -24,6 +24,69 @@ import pyodide_http
 
 pyodide_http.patch_all()
 
+
+```
+# {.sidebar}
+```{python}
+ui.input_selectize(
+    "cap_filter", "Build Type", choices=["new", "existing", "all"], selected="all"
+)
+ui.input_selectize(
+    "by_year", "Show by Year", choices=["True", "False"], selected="True"
+)
+ui.input_selectize("mark_type", "Plot Type", choices=["Bar", "Line"], selected="Bar")
+ui.input_selectize(
+    "x_var", "X-Variable", choices=["model", "case", "planning_year"], selected="model"
+)
+ui.input_selectize(
+    "col_var",
+    "Col-Variable",
+    choices=["model", "case", "planning_year", "tech_type"],
+    selected="case",
+)
+ui.input_selectize(
+    "row_var",
+    "Row-Variable",
+    choices=["model", "case", "planning_year", "tech_type"],
+    selected="planning_year",
+)
+```
+# Plot
+```{python}
+@reactive.calc
+def dat():
+
+    infile = "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/endogenous_retirement/capacity.csv"
+    df = pd.read_csv(infile)
+
+    return df  # .loc[df["case"].isin(input.case()), :]
+
+
+@render_altair
+def alt_chart():
+
+    df = dat()
+    if input.cap_filter() == "new":
+        _df = df.loc[df["new_build"] == True, :]
+    elif input.cap_filter() == "existing":
+        _df = df.loc[df["new_build"] == False, :]
+    else:
+        _df = df.copy()
+    if input.by_year() == "False":
+        _df = _df.loc[_df["planning_year"] == 2050, :]
+    mark_type = input.mark_type()
+    chart = chart_total_cap(
+        _df,
+        mark_type=input.mark_type(),
+        x_var=input.x_var(),
+        col_var=input.col_var(),
+        row_var=input.row_var(),
+    )
+    return chart
+
+```
+
+```{python}
 COLOR_MAP = {
     "Battery": "#4379AB",
     "CCS": "#96CCEB",
@@ -52,47 +115,6 @@ VAR_ABBR_MAP = {
     "line_name": "ln",
     "Region": "r",
 }
-```
-## Row
-<!-- ```{python}
-#| title: Inputs
-ui.input_selectize(
-    "cap_filter", "Build Type", choices=["new", "existing", "all"], selected="all"
-)
-ui.input_selectize(
-    "x_var", "X Variable", choices=["case", "model", "planning_year"], selected="model"
-)
-ui.input_selectize(
-    "col_var",
-    "Col Variable",
-    choices=["case", "model", "planning_year"],
-    selected="case",
-)
-ui.input_selectize(
-    "row_var",
-    "Row Variable",
-    choices=["case", "model", "planning_year"],
-    selected="planning_year",
-)
-
-ui.input_selectize(
-    "case",
-    "Select case",
-    selected=["full-base-200", "full-current-policies", "full-current-policies-retire"],
-    choices=["full-base-200", "full-current-policies", "full-current-policies-retire"],
-    multiple=True,
-)
-``` -->
-## Row
-```{python}
-
-@reactive.calc
-def dat():
-
-    infile = "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/endogenous_retirement/capacity.csv"
-    df = pd.read_csv(infile)
-
-    return df #.loc[df["case"].isin(input.case()), :]
 
 
 def title_case(s: str) -> str:
@@ -107,11 +129,12 @@ VAR_ABBR_TITLE_MAP["v"] = "Generation (TWh)"
 
 def chart_total_cap(
     cap: pd.DataFrame,
+    mark_type: str = "Bar",
     x_var="model",
     col_var=None,
     row_var="planning_year",
     order=None,
-    width=350,
+    width=alt.Step(40),
     height=250,
 ) -> alt.Chart:
     group_by = ["tech_type", x_var]
@@ -134,19 +157,18 @@ def chart_total_cap(
     cap_data = cap.groupby(group_by, as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
-    chart = (
-        alt.Chart(cap_data)
-        .mark_bar()
-        .encode(
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
-            y=alt.Y("sum(ev)").title("Capacity (GW)"),
-            color=alt.Color("tt")
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-            .title(title_case("tech_type")),
-            tooltip=_tooltips,
-        )
-        .properties(width=width, height=height)
-    )
+    if mark_type == "Bar":
+        c = alt.Chart(cap_data).mark_bar()
+    else:
+        c = alt.Chart(cap_data).mark_line()
+    chart = c.encode(
+        x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
+        y=alt.Y("sum(ev)").title("Capacity (GW)"),
+        color=alt.Color("tt")
+        .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+        .title(title_case("tech_type")),
+        tooltip=_tooltips,
+    ).properties(width=width, height=height)
     if col_var is not None:
         chart = chart.encode(
             column=alt.Column(VAR_ABBR_MAP[col_var])
@@ -164,23 +186,4 @@ def chart_total_cap(
         titleFontSize=20, labelFontSize=16
     )
     return chart
-
-
-@render_altair
-def cap_chart():
-    import altair as alt
-
-    df = dat()
-    # if input.cap_filter() == "new":
-    #     _df = df.loc[df["new_build"] == True, :]
-    # elif input.cap_filter() == "existing":
-    #     _df = df.loc[df["new_build"] == False, :]
-    # else:
-    #     _df = df.copy()
-    chart = chart_total_cap(
-        # _df, x_var=input.x_var(), col_var=input.col_var(), row_var=input.row_var()
-        df, x_var="model", col_var="case", row_var="planning_year"
-    )
-    return chart
-
 ```
