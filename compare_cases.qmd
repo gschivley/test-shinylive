@@ -16,7 +16,7 @@ import numpy as np
 from pathlib import Path
 import altair as alt
 
-# import anywidget
+import anywidget
 import pyodide_http
 
 pyodide_http.patch_all()
@@ -113,11 +113,11 @@ def title_case(s: str) -> str:
         return s.replace("_", " ").title()
 
 
-cap = pd.read_parquet(
-    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/capacity.parquet"
+cap = pd.read_csv(
+    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/capacity.csv"
 )
-gen = pd.read_parquet(
-    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/generation.parquet"
+gen = pd.read_csv(
+    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/generation.csv"
 )
 emiss = pd.read_csv(
     "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/emissions.csv"
@@ -131,21 +131,23 @@ annual_demand = pd.read_csv(
 )
 annual_demand.loc[:, "agg_zone"] = annual_demand.loc[:, "zone"].map(rev_region_map)
 
-all_cases = [
+base_case_list = [
     "full-base-200",
     "full-base-200-retire",
     "full-base-200-no-ccs",
     "full-base-200-commit",
     "full-base-50",
     "full-base-1000",
-    "full-current-policies",
-    "full-current-policies-retire",
-    "full-current-policies-commit",
     "full-base-200-tx-0",
     "full-base-200-tx-15",
     "full-base-200-tx-50",
     "20-week-foresight",
     "20-week-myopic",
+]
+cp_case_list = [
+    "full-current-policies",
+    "full-current-policies-retire",
+    "full-current-policies-commit",
     "20-week-foresight-current-policy",
     "20-week-myopic-current-policy",
 ]
@@ -156,8 +158,19 @@ all_years = [2027, 2030, 2035, 2040, 2045, 2050]
 ```{python}
 
 
-ui.input_select(
-    "cases", "Cases to compare", all_cases, selected=["full-base-200"], multiple=True
+ui.input_selectize(
+    "base_cases",
+    "Base cases",
+    base_case_list,
+    selected=["full-base-200"],
+    multiple=True,
+)
+ui.input_selectize(
+    "cp_cases",
+    "Current policy cases",
+    cp_case_list,
+    selected=["full-current-policies"],
+    multiple=True,
 )
 ui.input_selectize(
     "models", "Models to compare", all_models, selected=all_models, multiple=True
@@ -180,17 +193,18 @@ ui.input_selectize(
 ```{python}
 # | output: false
 alt.data_transformers.enable("vegafusion")
+# alt.data_transformers.disable_max_rows()
 ```
 ```{python}
-# @reactive.calc
-# def numeric_years():
-#     return [int(y) for y in input.year()]
+@reactive.calc
+def case_list():
+    return [c for c in input.base_cases()] + [c for c in input.cp_cases()]
 
 
 @reactive.calc
 def cap_cases():
     df = cap.loc[
-        (cap["case"].isin(input.cases()))
+        (cap["case"].isin(case_list()))
         & (cap["planning_year"].isin([int(y) for y in input.year()]))
         & (cap["model"].isin(input.models())),
         :,
@@ -205,7 +219,7 @@ def cap_cases():
 @reactive.calc
 def gen_cases():
     df = gen.loc[
-        (gen["case"].isin(input.cases()))
+        (gen["case"].isin(case_list()))
         & (gen["planning_year"].isin([int(y) for y in input.year()]))
         & (gen["model"].isin(input.models())),
         :,
@@ -220,7 +234,7 @@ def gen_cases():
 @reactive.calc
 def emiss_cases():
     return emiss.loc[
-        (emiss["case"].isin(input.cases()))
+        (emiss["case"].isin(case_list()))
         & (emiss["planning_year"].isin([int(y) for y in input.year()]))
         & (emiss["model"].isin(input.models())),
         :,
@@ -230,7 +244,7 @@ def emiss_cases():
 @reactive.calc
 def tx_exp_cases():
     return tx_exp.loc[
-        (tx_exp["case"].isin(input.cases()))
+        (tx_exp["case"].isin(case_list()))
         & (tx_exp["planning_year"].isin([int(y) for y in input.year()]))
         & (tx_exp["model"].isin(input.models())),
         :,
@@ -240,7 +254,7 @@ def tx_exp_cases():
 def filter_data(df: pd.DataFrame) -> pd.DataFrame:
     _df = df.copy()
     if "case" in df.columns:
-        _df = _df.loc[_df["case"].isin(input.cases()), :]
+        _df = _df.loc[_df["case"].isin(case_list()), :]
     if "planning_year" in df.columns:
         _df = _df.loc[_df["planning_year"].isin([int(y) for y in input.year()]), :]
     if "model" in df.columns:
@@ -309,6 +323,22 @@ def alt_gen():
 
 ```
 
+```{python}
+# | title: Capacity data
+@render.data_frame
+def cap_df():
+    return render.DataTable(cap_cases().head(100))
+
+```
+```{python}
+# | title: Generation data
+@render.data_frame
+def gen_df():
+    return render.DataTable(gen_cases().head(100))
+
+```
+
+
 # Average across models
 ## Row
 
@@ -352,12 +382,6 @@ def alt_avg_cap():
 
 ```{python}
 # | title: Generation
-# region_avg_cap = calc_mean_annual_gen(gen_cases(), by_agg_zone=True)
-@render.text
-def print_vars():
-    return input.avg_row_var(), input.avg_x_var(), input.avg_col_var()
-
-
 @render_altair
 def alt_mean_gen():
     with alt.renderers.enable("png"):
@@ -369,9 +393,22 @@ def alt_mean_gen():
             col_var=input.avg_col_var(),  # "tech_type",
             # order=order,
         )
-        chart
+        return chart
 ```
+```{python}
+# | title: Capacity data
+@render.data_frame
+def avg_cap_df():
+    return render.DataTable(calc_mean_annual_cap().head(100))
 
+```
+```{python}
+# | title: Generation data
+@render.data_frame
+def avg_gen_df():
+    return render.DataTable(calc_mean_annual_gen().head(100))
+
+```
 
 
 ```{python}
@@ -707,7 +744,7 @@ def chart_avg_gen_variation(
     order=None,
     bars_only=False,
     height=200,
-    width=alt.Step(10),
+    width=alt.Step(60),
 ) -> alt.Chart:
     for var in [x_var, col_var, row_var]:
         var = str_none(var)
@@ -765,7 +802,7 @@ def chart_avg_gen_variation(
     else:
         bars = (
             alt.Chart()
-            .mark_bar()
+            .mark_bar(width=10)
             .encode(
                 y=alt.Y("sum(v)").title("Generation (TWh)"),
                 x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
