@@ -8,3 +8,4 @@ nbformat
 jupyter
 pyodide-http
 anywidget
+fastparquet
