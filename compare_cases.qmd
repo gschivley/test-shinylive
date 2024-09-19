@@ -296,7 +296,7 @@ def order_dict():
     return {
         "case": list(input.base_cases()) + list(input.cp_cases()),
         "model": list(input.models()),
-        "planning_year": list(input.year()),
+        "planning_year": [int(y) for y in input.year()],
     }
 
 
