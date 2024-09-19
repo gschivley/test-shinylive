@@ -9,3 +9,4 @@ jupyter
 pyodide-http
 anywidget
 fastparquet
+geopandas
