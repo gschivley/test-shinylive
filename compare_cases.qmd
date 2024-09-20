@@ -906,7 +906,11 @@ def chart_total_cap_line(
             .title(title_case(color))
         )
     else:
-        _color = alt.Color(VAR_ABBR_MAP[color]).title(title_case(color))
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .title(title_case(color))
+            .sort(order_dict().get(color))
+        )
     chart = c.encode(
         x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
         # x=alt.X("y")
@@ -925,8 +929,9 @@ def chart_total_cap_line(
             .title(title_case(col_var))
             .header(titleFontSize=20, labelFontSize=15),
             row=alt.Row(VAR_ABBR_MAP[row_var])
-            # .sort(order)
-            .title(title_case(row_var)).header(titleFontSize=20, labelFontSize=15),
+            .sort(order_dict().get(row_var))
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15),
         )
     elif col_var is not None:
         chart = chart.encode(
@@ -1311,7 +1316,11 @@ def chart_total_gen_line(
             .title(title_case(color))
         )
     else:
-        _color = alt.Color(VAR_ABBR_MAP[color]).title(title_case(color))
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .title(title_case(color))
+            .sort(order_dict().get(color))
+        )
     chart = (
         alt.Chart(data)
         .mark_line()
