@@ -386,7 +386,7 @@ ui.input_selectize(
     selected="tech_type",
     width="125px",
 )
-
+ui.input_switch("cap_zero_y", "Zero Y-Axis", True)
 
 ```
 
@@ -424,10 +424,10 @@ def alt_cap_lines():
         df,
         mark_type="line",
         # filter_data(cap),
-        x_var="planning_year",
-        col_var="tech_type",
-        row_var="case",
-        color="model",
+        x_var=input.cap_x_var(),
+        col_var=input.cap_col_var(),
+        row_var=input.cap_row_var(),
+        color=input.cap_color(),
         width=125,
     )
     return chart
@@ -456,6 +456,7 @@ def alt_gen():
         x_var=input.cap_x_var(),
         col_var=input.cap_col_var(),
         row_var=input.cap_row_var(),
+        color=input.cap_color(),
     )
     return chart
 
@@ -479,11 +480,12 @@ def alt_gen_lines():
         df_cap,
         # mark_type="line",
         # filter_data(cap),
-        x_var="planning_year",
-        col_var="tech_type",
-        row_var="case",
-        color="model",
+        x_var=input.cap_x_var(),
+        col_var=input.cap_col_var(),
+        row_var=input.cap_row_var(),
+        color=input.cap_color(),
         width=125,
+        zero_y=input.cap_zero_y()
     )
     return chart
 
@@ -647,7 +649,7 @@ def tx_exp_df():
 ```
 # Emissions
 ## Row
-
+#### Column {.tabset}
 ```{python}
 # | content: card-toolbar
 ui.input_selectize(
@@ -678,8 +680,10 @@ ui.input_selectize(
     selected="Region",
     width="150px",
 )
+ui.input_switch("emiss_zero_y", "Zero Y-Axis", True)
 ```
 ```{python}
+# | title: Emission bars
 @render_altair
 def emissions_chart():
     chart = chart_emissions(
@@ -688,6 +692,22 @@ def emissions_chart():
         col_var=input.emiss_col_var(),
         row_var=input.emiss_row_var(),
         color=input.emiss_color(),
+        order=None,
+    )
+    return chart
+```
+```{python}
+# | title: Emission lines
+
+@render_altair
+def emissions_line_chart():
+    chart = chart_emissions_line(
+        emiss_cases(),
+        x_var=input.emiss_x_var(),
+        col_var=input.emiss_col_var(),
+        row_var=input.emiss_row_var(),
+        color=input.emiss_color(),
+        zero_y=input.emiss_zero_y(),
         order=None,
     )
     return chart
@@ -824,7 +844,7 @@ def chart_total_cap(
             _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
 
     group_by = [c for c in set(group_by) if c in cap.columns]
-    cap_data = cap.groupby(group_by, as_index=False)["end_value"].sum()
+    cap_data = cap.groupby(list(set(group_by)), as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
     cap_data["o"] = cap_data["tt"].map(TECH_STACK_ORDER)
@@ -908,7 +928,7 @@ def chart_total_cap_line(
             _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
 
     group_by = [c for c in set(group_by) if c in cap.columns]
-    cap_data = cap.groupby(group_by, as_index=False)["end_value"].sum()
+    cap_data = cap.groupby(list(set(group_by)), as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
     if mark_type.lower() == "bar":
@@ -1140,7 +1160,7 @@ def chart_total_gen(
         _gen.fillna({"end_value": 0}, inplace=True)
         _gen["potential_gen"] = _gen["end_value"] * 8760
 
-        data = _gen.groupby(group_by, as_index=False)[
+        data = _gen.groupby(list(set(group_by)), as_index=False)[
             ["value", "potential_gen", "end_value"]
         ].sum()
         data["capacity_factor"] = (data["value"] / data["potential_gen"]).round(3)
@@ -1152,7 +1172,7 @@ def chart_total_gen(
         )
 
     else:
-        data = gen.groupby(group_by, as_index=False)["value"].sum()
+        data = gen.groupby(list(set(group_by)), as_index=False)["value"].sum()
 
     if demand is not None:
         # demand.loc[:, "agg_zone"] = demand.loc[:, "zone"].map(rev_region_map)
@@ -1231,6 +1251,7 @@ def chart_total_gen_line(
     row_var="case",
     color="model",
     order=None,
+    zero_y=False,
     width=125,
     height=200,
 ) -> alt.Chart:
@@ -1292,7 +1313,7 @@ def chart_total_gen_line(
         _gen.fillna({"end_value": 0}, inplace=True)
         _gen["potential_gen"] = _gen["end_value"] * 8760
 
-        data = _gen.groupby(group_by, as_index=False)[
+        data = _gen.groupby(list(set(group_by)), as_index=False)[
             ["value", "potential_gen", "end_value"]
         ].sum()
         data["capacity_factor"] = (data["value"] / data["potential_gen"]).round(3)
@@ -1304,12 +1325,12 @@ def chart_total_gen_line(
         )
 
     else:
-        data = gen.groupby(group_by, as_index=False)["value"].sum()
+        data = gen.groupby(list(set(group_by)), as_index=False)["value"].sum()
     midx = pd.MultiIndex.from_product(
         [data[c].unique() for c in group_by], names=group_by
     )
     data = (
-        data.groupby(group_by)[["value", "capacity_factor", "end_value"]]
+        data.groupby(list(set(group_by)))[["value", "capacity_factor", "end_value"]]
         .mean()
         .reindex(midx)
         .reset_index()
@@ -1346,7 +1367,7 @@ def chart_total_gen_line(
             x=alt.X(VAR_ABBR_MAP[x_var])
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
-            y=alt.Y("v").title("Generation (TWh)"),
+            y=alt.Y("v").title("Generation (TWh)").scale(zero=zero_y),
             color=_color,
             # .scale(scheme="tableau20")
             # .title(title_case("tech_type")),
@@ -2000,48 +2021,44 @@ def chart_emissions_line(
     col_var="case",
     row_var=None,
     color="model",
+    mark_points=False,
     order=None,
+    zero_y=True,
     height=200,
     width=125,
 ) -> alt.Chart:
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
     row_var = var_to_none(row_var)
-    if emiss.empty:
-        return None
+
+    group_by = []
     _tooltips = [
         alt.Tooltip("sum(v)", format=",.0f", title="Million Tonnes"),
-        alt.Tooltip("r", title="Region"),
-        alt.Tooltip("m", title="Model"),
-        alt.Tooltip("y", title="Planning Year"),
     ]
-    emiss["Region"] = emiss["zone"].map(rev_region_map)
-    group_by = ["Region", x_var, "planning_year"]
-    if col_var is not None:
-        group_by.append(col_var)
 
-    data = emiss.groupby(group_by, as_index=False)["value"].sum()
-    if col_var is not None:
-        _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[col_var]))
+    for var in [x_var, col_var, row_var, color]:
+        if var is not None:
+            group_by.append(var)
+            _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
+    if emiss.empty:
+        return None
+
+    data = emiss.groupby(list(set(group_by)), as_index=False)["value"].sum()
     if order is None:
         order = sorted(data[x_var].unique())
     data["value"] /= 1e6
-    data["limit"] = 0.0
-    data.loc[data["planning_year"] == 2027, "limit"] = 873.0
-    data.loc[data["planning_year"] == 2030, "limit"] = 186.0
-    data.loc[data["planning_year"] == 2035, "limit"] = 130.0
-    data.loc[data["planning_year"] == 2040, "limit"] = 86.7
-    data.loc[data["planning_year"] == 2045, "limit"] = 43.3
     data = data.rename(columns=VAR_ABBR_MAP)
-    base = (
-        alt.Chart()
-        .mark_bar()
+    chart = (
+        alt.Chart(data)
+        .mark_line(point=mark_points)
         .encode(
             x=alt.X(VAR_ABBR_MAP[x_var])
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
-            y=alt.Y("sum(v)").title("CO2 (Million Tonnes)"),
-            color=alt.Color("r").title("Region"),  # .scale(scheme="tableau20"),
+            y=alt.Y("sum(v)").title("CO2 (Million Tonnes)").scale(zero=zero_y),
+            color=alt.Color(VAR_ABBR_MAP[color]).title(
+                title_case(color)
+            ),  # .scale(scheme="tableau20"),
             # column="agg_zone",
             # row="planning_year:O",
             tooltip=_tooltips,
@@ -2049,31 +2066,6 @@ def chart_emissions_line(
         # .properties(width=350, height=250)
         # .resolve_scale(y="independent")
     )
-    text = (
-        alt.Chart()
-        .mark_text(dy=-5)
-        .encode(
-            x=alt.X(VAR_ABBR_MAP[x_var])
-            .sort(order_dict().get(x_var))
-            .title(title_case(x_var)),
-            y="sum(v):Q",
-            text=alt.Text("sum(v):Q", format=".0f"),
-        )
-        .properties(width=width, height=height)
-    )  # .properties(width=350, height=250)
-    if co2_limit:
-        size = 2
-    else:
-        size = 0
-    line = (
-        alt.Chart()
-        .mark_rule(size=size)
-        .encode(
-            y=alt.Y("limit"),
-        )  # column="agg_zone", row="planning_year")
-        # .properties(width=150, height=250)
-    )
-    chart = alt.layer(base, text, line, data=data)
     if col_var is not None and row_var is not None:
         chart = chart.facet(
             column=alt.Column(VAR_ABBR_MAP[col_var])
