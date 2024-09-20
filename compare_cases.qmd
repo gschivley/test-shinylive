@@ -1282,7 +1282,15 @@ def chart_total_gen_line(
 
     else:
         data = gen.groupby(group_by, as_index=False)["value"].sum()
-
+    midx = pd.MultiIndex.from_product(
+        [data[c].unique() for c in group_by], names=group_by
+    )
+    data = (
+        data.groupby(group_by)[["value", "capacity_factor", "end_value"]]
+        .mean()
+        .reindex(midx)
+        .reset_index()
+    )
     if demand is not None:
         # demand.loc[:, "agg_zone"] = demand.loc[:, "zone"].map(rev_region_map)
         data = pd.merge(
