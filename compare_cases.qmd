@@ -171,6 +171,9 @@ cp_case_list = [
 ]
 all_models = ["GenX", "SWITCH", "TEMOA", "USENSYS"]
 all_years = [2027, 2030, 2035, 2040, 2045, 2050]
+all_techs = ['Battery', 'CCS', 'Coal', 'Distributed Solar', 'Geothermal',
+       'Hydro', 'Hydrogen', 'Natural Gas CC', 'Natural Gas CT', 'Nuclear',
+       'Solar', 'Wind']
 ```
 # {.sidebar}
 ```{python}
@@ -195,6 +198,9 @@ ui.input_selectize(
 ui.input_selectize("models", "Models", all_models, selected=all_models, multiple=True)
 ui.input_selectize(
     "year", "Model years", choices=all_years, selected=all_years, multiple=True
+)
+ui.input_selectize(
+    "tech_type", "Technology types", choices=all_techs, selected=all_techs, multiple=True
 )
 # ui.input_radio_buttons(
 #     "mark_type",
@@ -231,36 +237,39 @@ def case_list():
 
 
 @reactive.calc
+def int_years():
+    return [int(y) for y in input.year()]
+
+
+@reactive.calc
 def cap_cases():
-    df = cap.loc[
-        (cap["case"].isin(case_list()))
-        & (cap["planning_year"].isin([int(y) for y in input.year()]))
-        & (cap["model"].isin(input.models())),
+    df = cap.copy()
+    return df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models()))
+        & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
-    return df
 
 
 @reactive.calc
 def gen_cases():
-    df = gen.loc[
-        (gen["case"].isin(case_list()))
-        & (gen["planning_year"].isin([int(y) for y in input.year()]))
-        & (gen["model"].isin(input.models())),
+    df = gen.copy()
+    return df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models()))
+        & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
-    # if input.cap_filter() == "new":
-    #     df = df.loc[df["new_build"] == True, :]
-    # elif input.cap_filter() == "existing":
-    #     df = df.loc[df["new_build"] == False, :]
-    return df
 
 
 @reactive.calc
 def emiss_cases():
     return emiss.loc[
         (emiss["case"].isin(case_list()))
-        & (emiss["planning_year"].isin([int(y) for y in input.year()]))
+        & (emiss["planning_year"].isin(int_years()))
         & (emiss["model"].isin(input.models())),
         :,
     ]
@@ -270,7 +279,7 @@ def emiss_cases():
 def tx_exp_cases():
     return tx_exp.loc[
         (tx_exp["case"].isin(case_list()))
-        & (tx_exp["planning_year"].isin([int(y) for y in input.year()]))
+        & (tx_exp["planning_year"].isin(int_years()))
         & (tx_exp["model"].isin(input.models())),
         :,
     ]
@@ -303,7 +312,7 @@ def op_nse_data():
     df = op_nse.copy()
     return df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin([int(y) for y in input.year()]))
+        & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models())),
         :,
     ]
@@ -314,7 +323,8 @@ def order_dict():
     return {
         "case": list(input.base_cases()) + list(input.cp_cases()),
         "model": list(input.models()),
-        "planning_year": [int(y) for y in input.year()],
+        "planning_year": int_years(),
+        "tech_type": TECH_ORDER,
     }
 
 
@@ -323,7 +333,7 @@ def filter_data(df: pd.DataFrame) -> pd.DataFrame:
     if "case" in df.columns:
         _df = _df.loc[_df["case"].isin(case_list()), :]
     if "planning_year" in df.columns:
-        _df = _df.loc[_df["planning_year"].isin([int(y) for y in input.year()]), :]
+        _df = _df.loc[_df["planning_year"].isin(int_years()), :]
     if "model" in df.columns:
         _df = _df.loc[_df["model"].isin(input.models()), :]
     if "new_build" in df.columns:
@@ -522,6 +532,7 @@ ui.input_selectize(
     selected="agg_zone",
     width="150px",
 )
+ui.input_switch("independent_y_scale", "Independent Y-Axis", False)
 ```
 ```{python}
 # | title: Capacity
@@ -533,7 +544,9 @@ def alt_avg_cap():
         # calc_mean_annual_cap(filter_data(cap), by_agg_zone=True),
         row_var=input.avg_row_var(),  # "agg_zone",
         x_var=input.avg_x_var(),  # "case",
-        col_var=input.avg_col_var(),  # "tech_type",
+        col_var=input.avg_col_var(),
+        independent_y_scale=input.independent_y_scale(),
+          # "tech_type",
         # order=order,
     )
     return chart
@@ -548,7 +561,9 @@ def alt_mean_gen():
         calc_mean_annual_gen(),
         row_var=input.avg_row_var(),  # "agg_zone",
         x_var=input.avg_x_var(),  # "case",
-        col_var=input.avg_col_var(),  # "tech_type",
+        col_var=input.avg_col_var(),
+        independent_y_scale=input.independent_y_scale(),
+        # "tech_type",
         # order=order,
     )
     return chart
@@ -812,6 +827,7 @@ def chart_total_cap(
     cap_data = cap.groupby(group_by, as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
+    cap_data["o"] = cap_data["tt"].map(TECH_STACK_ORDER)
     if mark_type.lower() == "bar":
         c = alt.Chart(cap_data).mark_bar()
     else:
@@ -833,6 +849,7 @@ def chart_total_cap(
         y=alt.Y("sum(ev)").title("Capacity (GW)"),
         color=_color,
         tooltip=_tooltips,
+        order="o",
     ).properties(width=width, height=height)
     if col_var is not None and row_var is not None:
         chart = chart.facet(
@@ -961,6 +978,7 @@ def chart_avg_new_tech_variation(
     order=None,
     xOffset: str = None,
     bars_only=False,
+    independent_y_scale=False,
     height=200,
     width=alt.Step(40),
 ) -> alt.Chart:
@@ -1029,7 +1047,7 @@ def chart_avg_new_tech_variation(
         .properties(width=width, height=height)
     )
     data = data.rename(columns=VAR_ABBR_MAP)
-    # data["o"] = data["tt"].map(TECH_STACK_ORDER)
+    data["o"] = data["tt"].map(TECH_STACK_ORDER)
     chart = alt.layer(bars, error_bars, data=data)
     if col_var is not None and row_var is not None:
         chart = chart.facet(
@@ -1038,8 +1056,9 @@ def chart_avg_new_tech_variation(
             .title(title_case(col_var))
             .header(titleFontSize=20, labelFontSize=15),
             row=alt.Row(VAR_ABBR_MAP[row_var])
-            # .sort(order)
-            .title(title_case(row_var)).header(titleFontSize=20, labelFontSize=15),
+            .sort(order_dict().get(row_var))
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15),
         )
     elif col_var is not None:
         chart = chart.facet(
@@ -1058,7 +1077,10 @@ def chart_avg_new_tech_variation(
     chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
         titleFontSize=20, labelFontSize=16
     )
-    return chart
+    if independent_y_scale is True:
+        return chart.resolve_scale(y="independent")
+    else:
+        return chart
 
 
 def chart_total_gen(
@@ -1153,13 +1175,9 @@ def chart_total_gen(
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
             y=alt.Y("v").title("Generation (TWh)"),
-            color=alt.Color("tt").scale(
-                domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values())
-            )
-            # .scale(scheme="tableau20")
+            color=alt.Color("tt")
+            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
             .title(title_case("tech_type")),
-            # column="zone",
-            # row="planning_year:O",
             tooltip=_tooltips,
             order="o",
         )
@@ -1387,6 +1405,7 @@ def chart_avg_gen_variation(
     color: str = "tech_type",
     order=None,
     bars_only=False,
+    independent_y_scale=False,
     height=200,
     width=alt.Step(60),
 ) -> alt.Chart:
@@ -1520,7 +1539,10 @@ def chart_avg_gen_variation(
     chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
         titleFontSize=20, labelFontSize=16
     )
-    return chart
+    if independent_y_scale is True:
+        return chart.resolve_scale(y="independent")
+    else:
+        return chart
 
 ```
 
@@ -1867,6 +1889,7 @@ def chart_emissions(
     data.loc[data["planning_year"] == 2035, "limit"] = 130.0
     data.loc[data["planning_year"] == 2040, "limit"] = 86.7
     data.loc[data["planning_year"] == 2045, "limit"] = 43.3
+    data.loc[data["case"].str.contains("current", case=False), "limit"] = None
     data = data.rename(columns=VAR_ABBR_MAP)
 
     if color is None:
@@ -2283,7 +2306,13 @@ def chart_tx_map(
 
 
 def chart_op_nse(
-    op_nse: pd.DataFrame, x_var="model", col_var=None, row_var=None, order=None
+    op_nse: pd.DataFrame,
+    x_var="model",
+    col_var=None,
+    row_var=None,
+    order=None,
+    width=alt.Step(40),
+    height=200,
 ) -> alt.Chart:
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
@@ -2312,7 +2341,7 @@ def chart_op_nse(
             color=alt.Color("model:N").title(title_case("model")),
             tooltip=alt.Tooltip("sum(v)", format=",.0f", title="NSE"),
         )
-        .properties(width=alt.Step(40), height=250)
+        .properties(width=width, height=height)
     )
     if col_var is not None and row_var is not None:
         chart = chart.facet(
