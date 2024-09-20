@@ -19,6 +19,7 @@ from pathlib import Path
 import altair as alt
 
 import anywidget
+import fastparquet
 import pyodide_http
 
 pyodide_http.patch_all()
@@ -115,11 +116,11 @@ def title_case(s: str) -> str:
         return s.replace("_", " ").title()
 
 
-cap = pd.read_csv(
-    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/capacity.csv.gz"
+cap = pd.read_parquet(
+    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/capacity.parquet"
 )
-gen = pd.read_csv(
-    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/generation.csv.gz"
+gen = pd.read_parquet(
+    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/generation.parquet"
 )
 emiss = pd.read_csv(
     "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/emissions.csv"
