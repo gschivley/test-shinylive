@@ -134,6 +134,9 @@ op_costs = pd.read_csv(
 op_costs_model = pd.read_csv(
     "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/operational_costs_model.csv"
 )
+op_nse = pd.read_csv(
+    "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/compiled_results/all/operational_nse.csv"
+)
 gdf = gpd.read_file(
     "https://raw.githubusercontent.com/gschivley/MIP_results_comparison/main/notebooks/conus_26z_latlon_simple.geojson"
 )
@@ -193,6 +196,13 @@ ui.input_selectize("models", "Models", all_models, selected=all_models, multiple
 ui.input_selectize(
     "year", "Model years", choices=all_years, selected=all_years, multiple=True
 )
+# ui.input_radio_buttons(
+#     "mark_type",
+#     "Plot type",
+#     {"bar": "Bar Chart", "line": "Line Chart"},
+#     inline=True,
+#     width="400px",
+# )
 
 
 # @reactive.effect
@@ -228,10 +238,6 @@ def cap_cases():
         & (cap["model"].isin(input.models())),
         :,
     ]
-    # if input.cap_filter() == "new":
-    #     df = df.loc[df["new_build"] == True, :]
-    # elif input.cap_filter() == "existing":
-    #     df = df.loc[df["new_build"] == False, :]
     return df
 
 
@@ -293,6 +299,17 @@ def op_costs_data():
 
 
 @reactive.calc
+def op_nse_data():
+    df = op_nse.copy()
+    return df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin([int(y) for y in input.year()]))
+        & (df["model"].isin(input.models())),
+        :,
+    ]
+
+
+@reactive.calc
 def order_dict():
     return {
         "case": list(input.base_cases()) + list(input.cp_cases()),
@@ -336,22 +353,29 @@ ui.input_selectize(
     "X Variable",
     choices=["model", "case", "planning_year", "agg_zone"],
     selected="model",
-    width="150px",
+    width="125px",
 )
 ui.input_selectize(
     "cap_col_var",
     "Column",
-    choices=["model", "case", "planning_year", "tech_type", "agg_zone"],
+    choices=["model", "case", "planning_year", "tech_type", "agg_zone", "None"],
     selected="case",
-    width="150px",
+    width="125px",
 )
 ui.input_selectize(
     "cap_row_var",
     "Row",
-    choices=["model", "case", "planning_year", "tech_type", "agg_zone"],
+    choices=["model", "case", "planning_year", "tech_type", "agg_zone", "None"],
     selected="planning_year",
-    width="150px",
+    width="125px",
 )
+# ui.input_selectize(
+#     "cap_color",
+#     "Color",
+#     choices=["model", "case", "planning_year", "tech_type", "agg_zone", "None"],
+#     selected="tech_type",
+#     width="125px",
+# )
 
 
 ```
@@ -367,10 +391,12 @@ def alt_cap():
         df = df.loc[df["new_build"] == False, :]
     chart = chart_total_cap(
         df,
+        # mark_type=input.mark_type(),
         # filter_data(cap),
         x_var=input.cap_x_var(),
         col_var=input.cap_col_var(),
         row_var=input.cap_row_var(),
+        # color=input.cap_color(),
     )
     return chart
 
@@ -609,14 +635,14 @@ ui.input_selectize(
 ui.input_selectize(
     "cost_col_var",
     "Column",
-    choices=["case", "planning_year", "model"],
+    choices=["case", "planning_year", "model", "None"],
     selected="case",
     width="150px",
 )
 ui.input_selectize(
     "cost_row_var",
     "Row",
-    choices=["case", "planning_year", "model"],
+    choices=["case", "planning_year", "model", "None"],
     selected="planning_year",
     width="150px",
 )
@@ -644,6 +670,19 @@ def op_costs_chart():
     return chart
 ```
 ```{python}
+# | title: Operational NSE
+@render_altair
+def op_nse_chart():
+    chart = chart_op_nse(
+        op_nse_data(),
+        col_var=input.cost_col_var(),
+        x_var=input.cost_x_var(),
+        row_var=input.cost_row_var(),
+        order=None,
+    )
+    return chart
+```    
+```{python}
 # | title: Op cost model data
 @render.data_frame
 def costs_model_df():
@@ -655,6 +694,13 @@ def costs_model_df():
 @render.data_frame
 def costs_df():
     return render.DataTable(op_costs_data().head(100))
+
+```
+```{python}
+# | title: Op NSE data
+@render.data_frame
+def nse_df():
+    return render.DataTable(op_nse_data().head(100))
 
 ```
 
@@ -685,6 +731,7 @@ def chart_total_cap(
     x_var="model",
     col_var=None,
     row_var="planning_year",
+    color="tech_type",
     order=None,
     width=alt.Step(40),
     height=200,
@@ -713,19 +760,26 @@ def chart_total_cap(
     cap_data = cap.groupby(group_by, as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
-    if mark_type == "Bar":
+    if mark_type.lower() == "bar":
         c = alt.Chart(cap_data).mark_bar()
     else:
         c = alt.Chart(cap_data).mark_line()
+
+    if color == "tech_type":
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .title(title_case(color))
+        )
+    else:
+        _color = alt.Color(VAR_ABBR_MAP[color]).title(title_case(color))
     chart = c.encode(
         # x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
         x=alt.X(VAR_ABBR_MAP[x_var])
         .sort(order_dict().get(x_var))
         .title(title_case(x_var)),
         y=alt.Y("sum(ev)").title("Capacity (GW)"),
-        color=alt.Color("tt")
-        .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-        .title(title_case("tech_type")),
+        color=_color,
         tooltip=_tooltips,
     ).properties(width=width, height=height)
     if col_var is not None:
@@ -1027,6 +1081,11 @@ def chart_avg_gen_variation(
         alt.Tooltip("y", title="Planning Year"),
         alt.Tooltip("v", title="Generation (TWh)", format=",.0f"),
     ]
+    if "agg_zone" not in [x_var, col_var, row_var]:
+        data = data.groupby(
+            [var for var in [x_var, col_var, row_var, "planning_year"] if var != None],
+            as_index=False,
+        ).sum()
     if x_var and not x_var == "None":
         tooltips.append(alt.Tooltip(VAR_ABBR_MAP.get(x_var), title=title_case(x_var)))
     if col_var and not col_var == "None":
@@ -1340,7 +1399,9 @@ def single_op_cost_chart(
         .mark_bar()
         .encode(
             # xOffset="model:N",
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
             y=alt.Y("Total").title("Costs (Billion $)"),
             color=alt.Color("Costs:N").title("Category"),
             tooltip=_tooltip,
@@ -1351,7 +1412,9 @@ def single_op_cost_chart(
         alt.Chart()
         .mark_text(dy=-5, fontSize=11)
         .encode(
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
             y="sum(Total):Q",
             text=alt.Text("sum(Total):Q", format=".0f"),
         )
@@ -1452,6 +1515,8 @@ def chart_emissions(
     _tooltips = [
         alt.Tooltip("sum(v)", format=",.0f", title="Million Tonnes"),
         alt.Tooltip("r", title="Region"),
+        alt.Tooltip("m", title="Model"),
+        alt.Tooltip("y", title="Planning Year"),
     ]
     emiss["Region"] = emiss["zone"].map(rev_region_map)
     group_by = ["Region", x_var, "planning_year"]
@@ -1464,10 +1529,10 @@ def chart_emissions(
     if order is None:
         order = sorted(data[x_var].unique())
     data["value"] /= 1e6
-    data["limit"] = 0
-    data.loc[data["planning_year"] == 2027, "limit"] = 873
-    data.loc[data["planning_year"] == 2030, "limit"] = 186
-    data.loc[data["planning_year"] == 2035, "limit"] = 130
+    data["limit"] = 0.0
+    data.loc[data["planning_year"] == 2027, "limit"] = 873.0
+    data.loc[data["planning_year"] == 2030, "limit"] = 186.0
+    data.loc[data["planning_year"] == 2035, "limit"] = 130.0
     data.loc[data["planning_year"] == 2040, "limit"] = 86.7
     data.loc[data["planning_year"] == 2045, "limit"] = 43.3
     data = data.rename(columns=VAR_ABBR_MAP)
@@ -1475,7 +1540,9 @@ def chart_emissions(
         alt.Chart()
         .mark_bar()
         .encode(
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
             y=alt.Y("sum(v)").title("CO2 (Million Tonnes)"),
             color=alt.Color("r").title("Region"),  # .scale(scheme="tableau20"),
             # column="agg_zone",
@@ -1489,7 +1556,9 @@ def chart_emissions(
         alt.Chart()
         .mark_text(dy=-5)
         .encode(
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
             y="sum(v):Q",
             text=alt.Text("sum(v):Q", format=".0f"),
         )
@@ -1516,7 +1585,8 @@ def chart_emissions(
             .header(titleFontSize=20, labelFontSize=15),
             row=alt.Row(VAR_ABBR_MAP[row_var])
             .sort(order_dict().get(row_var))
-            .title(title_case(row_var)).header(titleFontSize=20, labelFontSize=15),
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15),
         )
     elif col_var is not None:
         chart = chart.facet(
@@ -1529,7 +1599,8 @@ def chart_emissions(
         chart = chart.facet(
             row=alt.Row(VAR_ABBR_MAP[row_var])
             .sort(order_dict().get(row_var))
-            .title(title_case(row_var)).header(titleFontSize=20, labelFontSize=15)
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15)
         )
     # if col_var is None:
     #     chart = (
@@ -1626,7 +1697,9 @@ def chart_tx_expansion(
         .mark_bar()
         .encode(
             # xOffset="model:N",
-            x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
             y=alt.Y("sum(v)").title("Transmission (GW)"),
             color=alt.Color("m:N").title(title_case("model")),
             opacity=alt.Opacity("y:O", sort="descending").title(
@@ -1656,7 +1729,9 @@ def chart_tx_expansion(
             alt.Chart()
             .mark_text(dy=-5, fontSize=14)
             .encode(
-                x=alt.X(VAR_ABBR_MAP[x_var]).sort(order_dict().get(x_var)).title(title_case(x_var)),
+                x=alt.X(VAR_ABBR_MAP[x_var])
+                .sort(order_dict().get(x_var))
+                .title(title_case(x_var)),
                 y="sum(v):Q",
                 text=alt.Text("sum(v):Q", format=".0f"),
             )
@@ -1755,6 +1830,68 @@ def chart_tx_map(
     )
     return chart
 
+
+def chart_op_nse(
+    op_nse: pd.DataFrame, x_var="model", col_var=None, row_var=None, order=None
+) -> alt.Chart:
+    x_var = var_to_none(x_var)
+    col_var = var_to_none(col_var)
+    row_var = var_to_none(row_var)
+    cols = ["Segment", "Total", "model"]
+    if "planning_year" in op_nse and row_var != "planning_year":
+        col_var = "planning_year"
+    if col_var is not None:
+        cols.append(col_var)
+    if row_var is not None:
+        cols.append(row_var)
+    if op_nse.empty:
+        return None
+    data = op_nse.copy()
+    data["value"] /= 1000
+    data = data.rename(columns=VAR_ABBR_MAP)
+    chart = (
+        alt.Chart(data)
+        .mark_bar()
+        .encode(
+            # xOffset="model:N",
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
+            y=alt.Y("sum(v)").title("Annual non-served GWh"),
+            color=alt.Color("model:N").title(title_case("model")),
+            tooltip=alt.Tooltip("sum(v)", format=",.0f", title="NSE"),
+        )
+        .properties(width=alt.Step(40), height=250)
+    )
+    if col_var is not None and row_var is not None:
+        chart = chart.facet(
+            column=alt.Column(VAR_ABBR_MAP[col_var])
+            .sort(order_dict().get(col_var))
+            .title(title_case(col_var))
+            .header(titleFontSize=20, labelFontSize=15),
+            row=alt.Row(VAR_ABBR_MAP[row_var])
+            .sort(order_dict().get(row_var))
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15),
+        )
+    elif col_var is not None:
+        chart = chart.encode(
+            column=alt.Column(VAR_ABBR_MAP[col_var])
+            .title(title_case(col_var))
+            .sort(order_dict().get(col_var))
+            .header(titleFontSize=20, labelFontSize=15)
+        )
+    elif row_var is not None:
+        chart = chart.encode(
+            row=alt.Row(VAR_ABBR_MAP[row_var])
+            .title(title_case(row_var))
+            .sort(order_dict().get(row_var))
+            .header(titleFontSize=20, labelFontSize=15)
+        )
+    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
+        titleFontSize=20, labelFontSize=16
+    )
+    return chart
 
 
 ```
