@@ -216,7 +216,7 @@ ui.input_selectize(
 #     )
 
 
-ui.input_selectize("mark_type", "Plot Type", choices=["Bar", "Line"], selected="Bar")
+# ui.input_selectize("mark_type", "Plot Type", choices=["Bar", "Line"], selected="Bar")
 
 ```
 ```{python}
