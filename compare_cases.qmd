@@ -7,6 +7,8 @@ server: shiny
 
 ```{python}
 # | context: setup
+import json
+from textwrap import wrap
 from typing import Any, Dict, List
 from shiny.express import ui, render
 from shinywidgets import render_altair
@@ -86,6 +88,44 @@ region_map = {
     "NE": ["ISNE", "NYUP", "NYCW"],
 }
 
+WRAPPED_CASE_NAME_MAP = {
+    "full-base-200": "CO₂ cap\n",
+    "full-base-200-retire": "CO₂ cap\nretire",
+    "full-base-200-no-ccs": "CO₂ cap\nno CCS",
+    "full-base-200-commit": "CO₂ cap\nunit commit",
+    "full-base-50": "CO₂ cap\n$50",
+    "full-base-1000": "CO₂ cap\n$1000",
+    "full-base-200-tx-0": "CO₂ cap\nno tx",
+    "full-base-200-tx-15": "CO₂ cap\n15% tx",
+    "full-base-200-tx-50": "CO₂ cap\n50% tx",
+    "20-week-foresight": "CO₂ cap\n20-week foresight",
+    "20-week-myopic": "CO₂ cap\n20-week",
+    "full-current-policies": "Current policy\n",
+    "full-current-policies-retire": "Current policy\nretire",
+    "full-current-policies-commit": "Current policy\nunit commit",
+    "20-week-foresight-current-policy": "Current policy\n20-week foresight",
+    "20-week-myopic-current-policy": "Current policy\n20-week",
+}
+
+CASE_NAME_MAP = {
+    "full-base-200": "CO₂ cap",
+    "full-base-200-retire": "CO₂ cap retire",
+    "full-base-200-no-ccs": "CO₂ cap no CCS",
+    "full-base-200-commit": "CO₂ cap unit commit",
+    "full-base-50": "CO₂ cap $50",
+    "full-base-1000": "CO₂ cap $1000",
+    "full-base-200-tx-0": "CO₂ cap no tx",
+    "full-base-200-tx-15": "CO₂ cap 15% tx",
+    "full-base-200-tx-50": "CO₂ cap 50% tx",
+    "20-week-foresight": "CO₂ cap 20-week foresight",
+    "20-week-myopic": "CO₂ cap 20-week",
+    "full-current-policies": "Current policy",
+    "full-current-policies-retire": "Current policy retire",
+    "full-current-policies-commit": "Current policy unit commit",
+    "20-week-foresight-current-policy": "Current policy 20-week foresight",
+    "20-week-myopic-current-policy": "Current policy 20-week",
+}
+
 
 def reverse_dict_of_lists(d: Dict[str, list]) -> Dict[str, List[str]]:
     """Reverse the mapping in a dictionary of lists so each list item maps to the key
@@ -149,7 +189,7 @@ annual_demand = pd.read_csv(
 )
 annual_demand.loc[:, "agg_zone"] = annual_demand.loc[:, "zone"].map(rev_region_map)
 
-base_case_list = [
+_base_case_list = [
     "full-base-200",
     "full-base-200-retire",
     "full-base-200-no-ccs",
@@ -162,13 +202,15 @@ base_case_list = [
     "20-week-foresight",
     "20-week-myopic",
 ]
-cp_case_list = [
+base_case_list = {c: CASE_NAME_MAP[c] for c in _base_case_list}
+_cp_case_list = [
     "full-current-policies",
     "full-current-policies-retire",
     "full-current-policies-commit",
     "20-week-foresight-current-policy",
     "20-week-myopic-current-policy",
 ]
+cp_case_list = {c: CASE_NAME_MAP[c] for c in _cp_case_list}
 all_models = ["GenX", "SWITCH", "TEMOA", "USENSYS"]
 all_years = [2027, 2030, 2035, 2040, 2045, 2050]
 all_techs = [
@@ -196,7 +238,7 @@ ui.input_selectize(
     base_case_list,
     selected=["full-base-200"],
     multiple=True,
-    remove_button=True,
+    options={"plugins": ["clear_button"]},
 )
 ui.input_selectize(
     "cp_cases",
@@ -204,36 +246,32 @@ ui.input_selectize(
     cp_case_list,
     selected=["full-current-policies"],
     multiple=True,
-    remove_button=True,
-)
-ui.input_selectize("models", "Models", all_models, selected=all_models, multiple=True)
-ui.input_selectize(
-    "year", "Model years", choices=all_years, selected=all_years, multiple=True
+    options={"plugins": ["clear_button"]},
 )
 ui.input_selectize(
-    "tech_type", "Technology types", choices=all_techs, selected=all_techs, multiple=True
+    "models",
+    "Models",
+    all_models,
+    selected=all_models,
+    multiple=True,
+    options={"plugins": ["clear_button"]},
 )
-# ui.input_radio_buttons(
-#     "mark_type",
-#     "Plot type",
-#     {"bar": "Bar Chart", "line": "Line Chart"},
-#     inline=True,
-#     width="400px",
-# )
-
-
-# @reactive.effect
-# def _():
-#     ui.input_selectize(
-#         id="case_order",
-#         label="Case order",
-#         choices=list(input.base_cases()) + list(input.cp_cases()),
-#         selected=list(input.base_cases()) + list(input.cp_cases()),
-#         multiple=True,
-#     )
-
-
-# ui.input_selectize("mark_type", "Plot Type", choices=["Bar", "Line"], selected="Bar")
+ui.input_selectize(
+    "year",
+    "Model years",
+    choices=all_years,
+    selected=all_years,
+    multiple=True,
+    options={"plugins": ["clear_button"]},
+)
+ui.input_selectize(
+    "tech_type",
+    "Technology types",
+    choices=all_techs,
+    selected=all_techs,
+    multiple=True,
+    options={"plugins": ["clear_button"]},
+)
 
 ```
 ```{python}
@@ -255,84 +293,106 @@ def int_years():
 @reactive.calc
 def cap_cases():
     df = cap.copy()
-    return df.loc[
+    df = df.loc[
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models()))
         & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
 
 
 @reactive.calc
 def gen_cases():
     df = gen.copy()
-    return df.loc[
+    df = df.loc[
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models()))
         & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
 
 
 @reactive.calc
 def emiss_cases():
-    return emiss.loc[
-        (emiss["case"].isin(case_list()))
-        & (emiss["planning_year"].isin(int_years()))
-        & (emiss["model"].isin(input.models())),
-        :,
-    ]
-
-
-@reactive.calc
-def tx_exp_cases():
-    return tx_exp.loc[
-        (tx_exp["case"].isin(case_list()))
-        & (tx_exp["planning_year"].isin(int_years()))
-        & (tx_exp["model"].isin(input.models())),
-        :,
-    ]
-
-
-@reactive.calc
-def op_costs_model_data():
-    df = op_costs_model.copy()
-    return df.loc[
-        (df["case"].isin(case_list()))
-        & ((df["planning_year"].isin(input.year())) | (df["planning_year"] == "NPV"))
-        & (df["model"].isin(input.models())),
-        :,
-    ]
-
-
-@reactive.calc
-def op_costs_data():
-    df = op_costs.copy()
-    return df.loc[
-        (df["case"].isin(case_list()))
-        & ((df["planning_year"].isin(input.year())) | (df["planning_year"] == "NPV"))
-        & (df["model"].isin(input.models())),
-        :,
-    ]
-
-
-@reactive.calc
-def op_nse_data():
-    df = op_nse.copy()
-    return df.loc[
+    df = emiss.copy()
+    df = df.loc[
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models())),
         :,
     ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
+
+
+@reactive.calc
+def tx_exp_cases():
+    df = tx_exp.copy()
+    df = df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models())),
+        :,
+    ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
+
+
+@reactive.calc
+def op_costs_model_data():
+    df = op_costs_model.copy()
+    df = df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models()))
+        & (df["tech_type"].isin(input.tech_type())),
+        :,
+    ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
+
+
+@reactive.calc
+def op_costs_data():
+    df = op_costs.copy()
+    df = df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models()))
+        & (df["tech_type"].isin(input.tech_type())),
+        :,
+    ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
+
+
+@reactive.calc
+def op_nse_data():
+    df = op_nse.copy()
+    df = df.loc[
+        (df["case"].isin(case_list()))
+        & (df["planning_year"].isin(int_years()))
+        & (df["model"].isin(input.models()))
+        & (df["tech_type"].isin(input.tech_type())),
+        :,
+    ]
+    df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
+    return df
 
 
 @reactive.calc
 def order_dict():
     return {
-        "case": list(input.base_cases()) + list(input.cp_cases()),
+        "case": [
+            WRAPPED_CASE_NAME_MAP[c]
+            for c in list(input.base_cases()) + list(input.cp_cases())
+        ],
         "model": list(input.models()),
         "planning_year": int_years(),
         "tech_type": TECH_ORDER,
@@ -545,6 +605,13 @@ ui.input_selectize(
     selected="agg_zone",
     width="150px",
 )
+ui.input_selectize(
+    "avg_color",
+    "Color",
+    choices=["case", "planning_year", "tech_type", "agg_zone", "None"],
+    selected="tech_type",
+    width="150px",
+)
 ui.input_switch("independent_y_scale", "Independent Y-Axis", False)
 ```
 ```{python}
@@ -558,8 +625,9 @@ def alt_avg_cap():
         row_var=input.avg_row_var(),  # "agg_zone",
         x_var=input.avg_x_var(),  # "case",
         col_var=input.avg_col_var(),
+        color=input.avg_color(),
         independent_y_scale=input.independent_y_scale(),
-          # "tech_type",
+        # "tech_type",
         # order=order,
     )
     return chart
@@ -575,6 +643,7 @@ def alt_mean_gen():
         row_var=input.avg_row_var(),  # "agg_zone",
         x_var=input.avg_x_var(),  # "case",
         col_var=input.avg_col_var(),
+        color=input.avg_color(),
         independent_y_scale=input.independent_y_scale(),
         # "tech_type",
         # order=order,
@@ -866,6 +935,40 @@ def var_to_none(var):
     return var
 
 
+def config_chart_row_col(chart: alt.Chart, row_var: str, col_var: str) -> alt.Chart:
+    if col_var is not None and row_var is not None:
+        chart = chart.facet(
+            column=alt.Column(VAR_ABBR_MAP[col_var])
+            .sort(order_dict().get(col_var))
+            .title(title_case(col_var))
+            .header(titleFontSize=20, labelFontSize=15),
+            row=alt.Row(VAR_ABBR_MAP[row_var])
+            .sort(order_dict().get(row_var))
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15),
+        )
+    elif col_var is not None:
+        chart = chart.facet(
+            column=alt.Column(VAR_ABBR_MAP[col_var])
+            .sort(order_dict().get(col_var))
+            .title(title_case(col_var))
+            .header(titleFontSize=20, labelFontSize=15)
+        )
+    elif row_var is not None:
+        chart = chart.facet(
+            row=alt.Row(VAR_ABBR_MAP[row_var])
+            .sort(order_dict().get(row_var))
+            .title(title_case(row_var))
+            .header(titleFontSize=20, labelFontSize=15)
+        )
+    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
+        titleFontSize=20, labelFontSize=16
+    )
+    if col_var == "case":
+        chart = chart.configure(lineBreak="\n")
+    return chart
+
+
 def chart_total_cap(
     cap: pd.DataFrame,
     mark_type: str = "bar",
@@ -894,6 +997,7 @@ def chart_total_cap(
     group_by = [c for c in set(group_by) if c in cap.columns]
     cap_data = cap.groupby(list(set(group_by)), as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
+    # cap_data["case"] = cap_data["case"].map(WRAPPED_CASE_NAME_MAP)
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
     cap_data["o"] = cap_data["tt"].map(TECH_STACK_ORDER)
     if mark_type.lower() == "bar":
@@ -909,6 +1013,8 @@ def chart_total_cap(
         )
     else:
         _color = alt.Color(VAR_ABBR_MAP[color]).title(title_case(color))
+    # if col_var != "case":
+    #     cap_data["case"] = cap_data["case"].str.replace("\n", "")
     chart = c.encode(
         # x=alt.X(VAR_ABBR_MAP[x_var]).sort(order).title(title_case(x_var)),
         x=alt.X(VAR_ABBR_MAP[x_var])
@@ -919,33 +1025,7 @@ def chart_total_cap(
         tooltip=_tooltips,
         order="o",
     ).properties(width=width, height=height)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            # .sort(order)
-            .title(title_case(row_var)).header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.encode(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.encode(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -978,6 +1058,7 @@ def chart_total_cap_line(
     group_by = [c for c in set(group_by) if c in cap.columns]
     cap_data = cap.groupby(list(set(group_by)), as_index=False)["end_value"].sum()
     cap_data["end_value"] /= 1000
+    # cap_data["case"] = cap_data["case"].map(WRAPPED_CASE_NAME_MAP)
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
     if mark_type.lower() == "bar":
         c = alt.Chart(cap_data).mark_bar()
@@ -1007,34 +1088,7 @@ def chart_total_cap_line(
         # column="tt",
         # row="c",
     ).properties(width=width, height=height)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.encode(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.encode(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -1043,6 +1097,7 @@ def chart_avg_new_tech_variation(
     x_var: str = "tech_type",
     col_var: str = "case",
     row_var: str = None,
+    color="tech_type",
     order=None,
     xOffset: str = None,
     bars_only=False,
@@ -1073,8 +1128,18 @@ def chart_avg_new_tech_variation(
         tooltips.append(alt.Tooltip(VAR_ABBR_MAP[col_var], title=title_case(col_var)))
     if row_var and row_var != "None":
         tooltips.append(alt.Tooltip(VAR_ABBR_MAP[row_var], title=title_case(row_var)))
-    # if bars_only:
-    #     return bars
+    if color == "tech_type":
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .title(title_case(color))
+        )
+    else:
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .title(title_case(color))
+            .sort(order_dict().get(color))
+        )
 
     bars = (
         alt.Chart()
@@ -1084,9 +1149,7 @@ def chart_avg_new_tech_variation(
             x=alt.X(VAR_ABBR_MAP[x_var])
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
-            color=alt.Color("tt")
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-            .title(title_case("tech_type")),
+            color=_color,
             opacity=alt.Opacity("y:O", sort="descending").title(
                 title_case("planning_year")
             ),
@@ -1114,37 +1177,11 @@ def chart_avg_new_tech_variation(
         )
         .properties(width=width, height=height)
     )
+
     data = data.rename(columns=VAR_ABBR_MAP)
     data["o"] = data["tt"].map(TECH_STACK_ORDER)
     chart = alt.layer(bars, error_bars, data=data)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     if independent_y_scale is True:
         return chart.resolve_scale(y="independent")
     else:
@@ -1158,6 +1195,7 @@ def chart_total_gen(
     x_var="model",
     col_var=None,
     row_var="planning_year",
+    color="tech_type",
     order=None,
     width=alt.Step(40),
     height=200,
@@ -1233,8 +1271,21 @@ def chart_total_gen(
     # else:
     #     demand = None
     data["value"] /= 1000000
+
     data = data.rename(columns=VAR_ABBR_MAP)
     data["o"] = data["tt"].map(TECH_STACK_ORDER)
+    if color == "tech_type":
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .title(title_case(color))
+        )
+    else:
+        _color = (
+            alt.Color(VAR_ABBR_MAP[color])
+            .title(title_case(color))
+            .sort(order_dict().get(color))
+        )
     chart = (
         alt.Chart()  # data)
         .mark_bar()
@@ -1243,9 +1294,7 @@ def chart_total_gen(
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
             y=alt.Y("v").title("Generation (TWh)"),
-            color=alt.Color("tt")
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-            .title(title_case("tech_type")),
+            color=_color,
             tooltip=_tooltips,
             order="o",
         )
@@ -1258,35 +1307,7 @@ def chart_total_gen(
             .encode(y=alt.Y("annual_demand"), tooltip="annual_demand")
         )
         chart = alt.layer(chart, line, data=data)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -1394,6 +1415,7 @@ def chart_total_gen_line(
     # else:
     #     demand = None
     data["value"] /= 1000000
+
     data = data.rename(columns=VAR_ABBR_MAP)
     data["o"] = data["tt"].map(TECH_STACK_ORDER)
     if color == "tech_type":
@@ -1433,35 +1455,7 @@ def chart_total_gen_line(
     #         .encode(y=alt.Y("annual_demand"), tooltip="annual_demand")
     #     )
     #     chart = alt.layer(chart, line, data=data)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -1578,36 +1572,10 @@ def chart_avg_gen_variation(
             )
             .properties(width=width, height=height)
         )
+
     data = data.rename(columns=VAR_ABBR_MAP)
     chart = alt.layer(bars, error_bars, data=data)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     if independent_y_scale is True:
         return chart.resolve_scale(y="independent")
     else:
@@ -1804,6 +1772,7 @@ def single_op_cost_chart(
     if row_var is not None:
         _tooltip.append(alt.Tooltip(VAR_ABBR_MAP[row_var]).title(title_case(row_var)))
         chart_cols.append(VAR_ABBR_MAP[row_var])
+
     data = data.rename(columns=VAR_ABBR_MAP)
     base = (
         alt.Chart()
@@ -1886,6 +1855,7 @@ def chart_op_cost(
 
     data = op_costs.copy()
     data["Total"] /= 1e9
+
     data = data.rename(columns=VAR_ABBR_MAP)
 
     chart = single_op_cost_chart(data, x_var, col_var, row_var, order)
@@ -1959,6 +1929,7 @@ def chart_emissions(
     data.loc[data["planning_year"] == 2040, "limit"] = 86.7
     data.loc[data["planning_year"] == 2045, "limit"] = 43.3
     data.loc[data["case"].str.contains("current", case=False), "limit"] = None
+
     data = data.rename(columns=VAR_ABBR_MAP)
 
     if color is None:
@@ -2009,57 +1980,7 @@ def chart_emissions(
         # .properties(width=150, height=250)
     )
     chart = alt.layer(base, text, line, data=data)
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    # if col_var is None:
-    #     chart = (
-    #         alt.layer(base, text, line, data=data)
-    #         # .properties(width=350, height=250)
-    #         .facet(
-    #             row=alt.Row("y:O")
-    #             .title(title_case("planning_year"))
-    #             .header(titleFontSize=20, labelFontSize=15)
-    #         )
-    #     )
-    # else:
-    #     chart = (
-    #         alt.layer(base, text, line, data=data)
-    #         # .properties(width=350, height=250)
-    #         .facet(
-    #             row=alt.Row("y:O")
-    #             .title(title_case("planning_year"))
-    #             .header(titleFontSize=20, labelFontSize=15),
-    #             column=alt.Column(VAR_ABBR_MAP[col_var])
-    #             .title(title_case(col_var))
-    #             .header(titleFontSize=20, labelFontSize=15),
-    #         )
-    #     )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -2095,6 +2016,7 @@ def chart_emissions_line(
     if order is None:
         order = sorted(data[x_var].unique())
     data["value"] /= 1e6
+
     data = data.rename(columns=VAR_ABBR_MAP)
     chart = (
         alt.Chart(data)
@@ -2114,34 +2036,7 @@ def chart_emissions_line(
         # .properties(width=350, height=250)
         # .resolve_scale(y="independent")
     )
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.facet(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
@@ -2205,6 +2100,7 @@ def chart_tx_expansion(
             alt.Tooltip("c").title("Case"),
         )
     data["value"] /= 1000
+
     data = data.rename(columns=VAR_ABBR_MAP)
     chart = (
         alt.Chart(data)
@@ -2212,6 +2108,7 @@ def chart_tx_expansion(
         .encode(
             # xOffset="model:N",
             x=alt.X(VAR_ABBR_MAP[x_var])
+            .axis(labelLimit=250)
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
             y=alt.Y("sum(v)").title("Transmission (GW)"),
@@ -2368,6 +2265,7 @@ def chart_op_nse(
         return None
     data = op_nse.copy()
     data["value"] /= 1000
+
     data = data.rename(columns=VAR_ABBR_MAP)
     chart = (
         alt.Chart(data)
@@ -2383,34 +2281,7 @@ def chart_op_nse(
         )
         .properties(width=width, height=height)
     )
-    if col_var is not None and row_var is not None:
-        chart = chart.facet(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .sort(order_dict().get(col_var))
-            .title(title_case(col_var))
-            .header(titleFontSize=20, labelFontSize=15),
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .sort(order_dict().get(row_var))
-            .title(title_case(row_var))
-            .header(titleFontSize=20, labelFontSize=15),
-        )
-    elif col_var is not None:
-        chart = chart.encode(
-            column=alt.Column(VAR_ABBR_MAP[col_var])
-            .title(title_case(col_var))
-            .sort(order_dict().get(col_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    elif row_var is not None:
-        chart = chart.encode(
-            row=alt.Row(VAR_ABBR_MAP[row_var])
-            .title(title_case(row_var))
-            .sort(order_dict().get(row_var))
-            .header(titleFontSize=20, labelFontSize=15)
-        )
-    chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
-    )
+    chart = config_chart_row_col(chart, row_var, col_var)
     return chart
 
 
