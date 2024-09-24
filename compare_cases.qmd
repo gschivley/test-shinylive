@@ -615,7 +615,7 @@ ui.input_selectize(
 ui.input_switch("independent_y_scale", "Independent Y-Axis", False)
 ```
 ```{python}
-# | title: Capacity
+# | title: New-build capacity
 @render_altair
 def alt_avg_cap():
     # region_avg_cap = calc_mean_annual_cap(cap_cases(), by_agg_zone=True)
@@ -650,6 +650,7 @@ def alt_mean_gen():
     )
     return chart
 ```
+
 ```{python}
 # | title: Capacity data
 @render.data_frame
@@ -663,6 +664,50 @@ def avg_cap_df():
 def avg_gen_df():
     return render.DataTable(calc_mean_annual_gen().head(100))
 
+```
+
+# Average Gen line
+## Row
+```{python}
+# | content: card-toolbar
+ui.input_selectize(
+    "gen_line_col_var",
+    "Column",
+    choices=["case", "tech_type", "agg_zone", "None"],
+    selected="tech_type",
+    width="150px",
+)
+ui.input_selectize(
+    "gen_line_row_var",
+    "Row",
+    choices=["case", "tech_type", "agg_zone", "None"],
+    selected="agg_zone",
+    width="150px",
+)
+ui.input_selectize(
+    "gen_line_color",
+    "Color",
+    choices=["case", "tech_type", "agg_zone", "None"],
+    selected="case",
+    width="150px",
+)
+ui.input_switch("gen_line_independent_y_scale", "Independent Y-Axis", False)
+```
+```{python}
+@render_altair
+def alt_mean_gen_line():
+    chart = chart_avg_gen_variation_line(
+        # calc_mean_annual_gen(gen_cases(), by_agg_zone=True),
+        calc_mean_annual_gen(),
+        row_var=input.gen_line_row_var(),  # "agg_zone",
+        # x_var=input.avg_x_var(),  # "case",
+        col_var=input.gen_line_col_var(),
+        color=input.gen_line_color(),
+        independent_y_scale=input.gen_line_independent_y_scale(),
+        # "tech_type",
+        # order=order,
+    )
+    return chart
 ```
 # Transmission expansion
 ## Row
@@ -756,7 +801,7 @@ ui.input_selectize(
 ui.input_selectize(
     "emiss_color",
     "Color",
-    choices=["case", "planning_year", "model", "Region", "None"],
+    choices=["case", "planning_year", "model", "Region"],
     selected="Region",
     width="150px",
 )
@@ -1108,26 +1153,23 @@ def chart_avg_new_tech_variation(
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
     row_var = var_to_none(row_var)
+    opacity = "planning_year"
 
-    data = annual_new_cap_mean.reset_index()
-    for col in ["end_value", "min", "max"]:
-        data[col] = (data[col] / 1000).round(1)
-
-    if "agg_zone" not in [x_var, col_var, row_var]:
-        data = data.groupby(
-            [var for var in [x_var, col_var, row_var, "planning_year"] if var != None],
-            as_index=False,
-        ).sum()
-    tooltips = [
-        alt.Tooltip("y", title="Planning Year"),
-        alt.Tooltip("ev", title="Capacity (GW)", format=",.0f"),
+    group_by = []
+    _tooltips = [
+        alt.Tooltip(VAR_ABBR_MAP["end_value"], title="Capacity (GW)", format=",.0f"),
     ]
-    if x_var and x_var != "None":
-        tooltips.append(alt.Tooltip(VAR_ABBR_MAP[x_var], title=title_case(x_var)))
-    if col_var and col_var != "None":
-        tooltips.append(alt.Tooltip(VAR_ABBR_MAP[col_var], title=title_case(col_var)))
-    if row_var and row_var != "None":
-        tooltips.append(alt.Tooltip(VAR_ABBR_MAP[row_var], title=title_case(row_var)))
+
+    for var in [x_var, col_var, row_var, color, opacity]:
+        if var is not None:
+            group_by.append(var)
+            _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
+
+    data = annual_new_cap_mean.groupby(list(set(group_by)), as_index=False)[
+        ["end_value", "min", "max"]
+    ].sum()
+    for col in ["end_value", "min", "max"]:
+        data[col] = (data[col] / 1000).round(0)
     if color == "tech_type":
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
@@ -1158,7 +1200,7 @@ def chart_avg_new_tech_variation(
                 "y",
                 sort="ascending",
             ),
-            tooltip=tooltips,
+            tooltip=_tooltips,
             # xOffset=alt.XOffset(VAR_ABBR_MAP.get(xOffset)),
         )
     )
@@ -1581,6 +1623,83 @@ def chart_avg_gen_variation(
     else:
         return chart
 
+
+def chart_avg_gen_variation_line(
+    annual_gen_mean: pd.DataFrame,
+    x_var: str = "planning_year",
+    col_var: str = "case",
+    row_var: str = None,
+    color: str = "tech_type",
+    order=None,
+    independent_y_scale=False,
+    height=200,
+    width=alt.Step(60),
+) -> alt.Chart:
+    x_var = var_to_none(x_var)
+    col_var = var_to_none(col_var)
+    row_var = var_to_none(row_var)
+
+    group_by = []
+    _tooltips = [
+        alt.Tooltip(VAR_ABBR_MAP["value"], title="Generation (TWh)", format=",.0f"),
+    ]
+
+    for var in [x_var, col_var, row_var, color]:
+        if var is not None:
+            group_by.append(var)
+            _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
+
+    data = annual_gen_mean.groupby(list(set(group_by)), as_index=False)[
+        ["value", "min", "max"]
+    ].sum()
+    for col in ["value", "min", "max"]:
+        data[col] = (data[col] / 1000000).round(0)
+
+    if color == "tech_type":
+        _color = (
+            alt.Color("tt")
+            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .title(title_case("tech_type"))
+        )
+    else:
+        _color = alt.Color(VAR_ABBR_MAP.get(color)).title(title_case(color))
+    line = (
+        alt.Chart()
+        .mark_line(point=True)
+        .encode(
+            y=alt.Y("sum(v)").title("Generation (TWh)"),
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .axis(format="04d")
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
+            color=_color,
+            tooltip=_tooltips,
+        )
+        .properties(width=width, height=height)
+    )
+
+    band = (
+        alt.Chart()
+        .mark_errorband()
+        .encode(
+            x=alt.X(VAR_ABBR_MAP[x_var])
+            .sort(order_dict().get(x_var))
+            .title(title_case(x_var)),
+            y=alt.Y("sum(max)").title("Generation (TWh)"),
+            y2=alt.Y2("sum(min)"),
+            color=_color,
+        )
+        .properties(width=width, height=height)
+    )
+
+    data = data.rename(columns=VAR_ABBR_MAP)
+    chart = alt.layer(line, band, data=data)
+    chart = config_chart_row_col(chart, row_var, col_var)
+    if independent_y_scale is True:
+        return chart.resolve_scale(y="independent")
+    else:
+        return chart
+
 ```
 
 ```{python}
@@ -1606,7 +1725,9 @@ def calc_mean_annual_cap(
         by.append("zone")
     if by_agg_zone:
         by.append("agg_zone")
-    if new_build:
+    if new_build and existing:
+        _cap = cap.copy()
+    elif new_build:
         _cap = cap.query("new_build == True and unit == 'MW'")
     elif existing:
         _cap = cap.query("new_build == False and unit == 'MW'")
@@ -1999,6 +2120,7 @@ def chart_emissions_line(
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
     row_var = var_to_none(row_var)
+    color = var_to_none(color)
 
     group_by = []
     _tooltips = [
@@ -2015,6 +2137,10 @@ def chart_emissions_line(
     data = emiss.groupby(list(set(group_by)), as_index=False)["value"].sum()
     if order is None:
         order = sorted(data[x_var].unique())
+    if color is None:
+        _color = None
+    else:
+        _color = alt.Color(VAR_ABBR_MAP[color]).title(title_case(color))
     data["value"] /= 1e6
 
     data = data.rename(columns=VAR_ABBR_MAP)
@@ -2026,9 +2152,7 @@ def chart_emissions_line(
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
             y=alt.Y("sum(v)").title("CO2 (Million Tonnes)").scale(zero=zero_y),
-            color=alt.Color(VAR_ABBR_MAP[color]).title(
-                title_case(color)
-            ),  # .scale(scheme="tableau20"),
+            color=_color,  # .scale(scheme="tableau20"),
             # column="agg_zone",
             # row="planning_year:O",
             tooltip=_tooltips,
