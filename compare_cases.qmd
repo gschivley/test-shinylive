@@ -349,9 +349,8 @@ def op_costs_model_data():
     df = op_costs_model.copy()
     df = df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin(int_years()))
-        & (df["model"].isin(input.models()))
-        & (df["tech_type"].isin(input.tech_type())),
+        & (df["planning_year"].isin(list(input.year()) + ["NPV"]))
+        & (df["model"].isin(input.models())),
         :,
     ]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
@@ -363,9 +362,8 @@ def op_costs_data():
     df = op_costs.copy()
     df = df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin(int_years()))
-        & (df["model"].isin(input.models()))
-        & (df["tech_type"].isin(input.tech_type())),
+        & (df["planning_year"].isin(list(input.year()) + ["NPV"]))
+        & (df["model"].isin(input.models())),
         :,
     ]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
@@ -378,8 +376,7 @@ def op_nse_data():
     df = df.loc[
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
-        & (df["model"].isin(input.models()))
-        & (df["tech_type"].isin(input.tech_type())),
+        & (df["model"].isin(input.models())),
         :,
     ]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
@@ -1010,7 +1007,9 @@ def config_chart_row_col(chart: alt.Chart, row_var: str, col_var: str) -> alt.Ch
         titleFontSize=20, labelFontSize=16
     )
     if col_var == "case":
-        chart = chart.configure(lineBreak="\n")
+        chart = chart.configure(lineBreak="\n").configure_axis(
+            labelFontSize=15, titleFontSize=15
+        )
     return chart
 
 
@@ -1991,11 +1990,13 @@ def chart_op_cost(
             final_chart = chart & npv_chart
         else:
             final_chart = chart
-    final_chart = (
-        final_chart.configure_axis(labelFontSize=15, titleFontSize=15)
-        .configure_axis(labelFontSize=15, titleFontSize=15)
-        .configure_legend(titleFontSize=20, labelFontSize=16)
-    )
+    final_chart = final_chart.configure_axis(
+        labelFontSize=15, titleFontSize=15
+    ).configure_legend(titleFontSize=20, labelFontSize=16)
+    if col_var == "case":
+        final_chart = final_chart.configure(lineBreak="\n").configure_axis(
+            labelFontSize=15, titleFontSize=15
+        )
     return final_chart
 
 
