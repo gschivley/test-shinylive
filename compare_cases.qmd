@@ -336,7 +336,7 @@ def tx_exp_cases():
     df = tx_exp.copy()
     df = df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin(int_years()))
+        & (df["planning_year"].isin([2023] + int_years()))
         & (df["model"].isin(input.models())),
         :,
     ]
