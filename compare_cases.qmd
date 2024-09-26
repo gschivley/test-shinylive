@@ -2385,7 +2385,7 @@ def chart_tx_expansion(
 
     group_by = []
     _tooltips = [
-        alt.Tooltip("sum(v)", format=",.0f", title="Million Tonnes"),
+        alt.Tooltip("sum(v)", format=",.0f", title="Period GW"),
     ]
 
     for var in [x_var, col_var, row_var, "planning_year"]:
