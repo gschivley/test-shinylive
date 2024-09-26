@@ -312,7 +312,7 @@ def cap_cases():
         :,
     ]
 
-    df["_case"] = df.loc[:, "case"]
+    df.loc[:, "_case"] = df.loc[:, "case"].copy()
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
     return df
 
@@ -328,7 +328,7 @@ def gen_cases():
         :,
     ]
 
-    df["_case"] = df.loc[:, "case"]
+    df.loc[:, "_case"] = df.loc[:, "case"].copy()
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
     return df
 
@@ -404,6 +404,10 @@ def op_nse_data():
 def order_dict():
     return {
         "case": [
+            WRAPPED_CASE_NAME_MAP[c]
+            for c in list(input.base_cases()) + list(input.cp_cases())
+        ],
+        "_case": [
             WRAPPED_CASE_NAME_MAP[c]
             for c in list(input.base_cases()) + list(input.cp_cases())
         ],
@@ -587,7 +591,7 @@ ui.input_selectize(
     "Column",
     choices={
         c: title_case(c)
-        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
     },
     selected="tech_type",
     width="125px",
@@ -597,9 +601,9 @@ ui.input_selectize(
     "Row",
     choices={
         c: title_case(c)
-        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
     },
-    selected="_case",
+    selected="case",
     width="150px",
 )
 ui.input_selectize(
@@ -607,7 +611,7 @@ ui.input_selectize(
     "Color",
     choices={
         c: title_case(c)
-        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
     },
     selected="model",
     width="125px",
@@ -1632,12 +1636,7 @@ def chart_total_gen_line(
     midx = pd.MultiIndex.from_product(
         [data[c].unique() for c in group_by], names=group_by
     )
-    data = (
-        data.groupby(list(set(group_by)))[["value", "capacity_factor", "end_value"]]
-        .mean()
-        .reindex(midx)
-        .reset_index()
-    )
+    data = data.set_index(list(set(group_by))).reindex(midx, fill_value=0).reset_index()
     data["value"] /= 1000000
 
     data = data.rename(columns=VAR_ABBR_MAP)
