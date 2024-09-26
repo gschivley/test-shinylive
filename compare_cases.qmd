@@ -66,6 +66,7 @@ MODEL_ORDER = ["GenX", "SWITCH", "TEMOA", "USENSYS"]
 VAR_ABBR_MAP = {
     "model": "m",
     "case": "c",
+    "_case": "c",
     "planning_year": "y",
     "resource_name": "rn",
     "agg_zone": "az",
@@ -153,6 +154,8 @@ rev_region_map = reverse_dict_of_lists(region_map)
 
 def title_case(s: str) -> str:
     if isinstance(s, str):
+        if s == "_case":
+            return "Case"
         return s.replace("_", " ").title()
 
 
@@ -278,6 +281,7 @@ ui.input_selectize(
 # | output: false
 # alt.data_transformers.enable("vegafusion")
 alt.data_transformers.disable_max_rows()
+alt.renderers.enable("svg")
 ```
 ```{python}
 @reactive.calc
@@ -290,6 +294,13 @@ def int_years():
     return [int(y) for y in input.year()]
 
 
+def fill_idx(df: pd.DataFrame, cols) -> pd.DataFrame:
+    midx = pd.MultiIndex.from_product([df[c].unique() for c in cols], names=cols)
+    df = df.set_index(cols)
+    df = df.reindex(midx, fill_value=0)
+    return df.reset_index()
+
+
 @reactive.calc
 def cap_cases():
     df = cap.copy()
@@ -300,6 +311,8 @@ def cap_cases():
         & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
+
+    df["_case"] = df.loc[:, "case"]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
     return df
 
@@ -314,6 +327,8 @@ def gen_cases():
         & (df["tech_type"].isin(input.tech_type())),
         :,
     ]
+
+    df["_case"] = df.loc[:, "case"]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
     return df
 
@@ -329,13 +344,6 @@ def emiss_cases():
     ]
     df["case"] = df["case"].map(WRAPPED_CASE_NAME_MAP)
     return df
-
-
-def fill_idx(df: pd.DataFrame, cols) -> pd.DataFrame:
-    midx = pd.MultiIndex.from_product([df[c].unique() for c in cols], names=cols)
-    df = df.set_index(cols)
-    df = df.reindex(midx, fill_value=0)
-    return df.reset_index()
 
 
 @reactive.calc
@@ -529,7 +537,9 @@ def alt_gen():
 # | title: Capacity data
 @render.data_frame
 def cap_df():
-    df = cap_cases().groupby(["model", "case", "tech_type", "agg_zone", "planning_year", "unit"], as_index=False)["end_value"].sum()
+    _cols = ["model", "case", "tech_type", "agg_zone", "planning_year", "unit"]
+    cols = [c for c in _cols if c in cap_cases().columns]
+    df = cap_cases().groupby(cols, as_index=False)["end_value"].sum()
     return render.DataTable(df, filters=True)
 
 ```
@@ -537,10 +547,12 @@ def cap_df():
 # | title: Generation data
 @render.data_frame
 def gen_df():
+    _cols = ["model", "case", "tech_type", "agg_zone", "planning_year"]
+    cols = [c for c in _cols if c in gen_cases().columns]
     df = (
         gen_cases()
         .groupby(
-            ["model", "case", "tech_type", "agg_zone", "planning_year", "unit"],
+            cols,
             as_index=False,
         )["value"]
         .sum()
@@ -575,7 +587,7 @@ ui.input_selectize(
     "Column",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
     },
     selected="tech_type",
     width="125px",
@@ -585,9 +597,9 @@ ui.input_selectize(
     "Row",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
     },
-    selected="case",
+    selected="_case",
     width="150px",
 )
 ui.input_selectize(
@@ -595,7 +607,7 @@ ui.input_selectize(
     "Color",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in ["model", "_case", "planning_year", "tech_type", "agg_zone", "None"]
     },
     selected="model",
     width="125px",
@@ -1369,6 +1381,8 @@ def chart_avg_new_tech_variation_lines(
     group_by = []
     _tooltips = [
         alt.Tooltip(VAR_ABBR_MAP["end_value"], title="Capacity (GW)", format=",.0f"),
+        alt.Tooltip("min", title="Min"),
+        alt.Tooltip("max", title="Max"),
     ]
 
     for var in [x_var, col_var, row_var, color, opacity]:
@@ -1418,6 +1432,7 @@ def chart_avg_new_tech_variation_lines(
             y=alt.Y("sum(max)").title("Capacity (GW)"),
             y2=alt.Y2("sum(min)"),
             color=_color,
+            tooltip=_tooltips,
         )
         .properties(width=width, height=height)
     )
@@ -1471,19 +1486,16 @@ def chart_total_gen(
     merge_by = list(set(merge_by))
     group_by = list(set(group_by))
     if cap is not None:
-        _cap = (
-            cap.query("unit=='MW'")
-            .groupby(
-                merge_by,
-                # ["tech_type", "resource_name", "model", "planning_year"],
-                as_index=False,
-            )["end_value"]
-            .sum()
-        )
+        _cap = cap.copy()
+        if "unit" in cap.columns:
+            _cap = _cap.query("unit=='MW'")
+        _cap = _cap.groupby(
+            merge_by,
+            as_index=False,
+        )["end_value"].sum()
         _gen = pd.merge(
             gen,
             _cap,
-            # on=["tech_type", "resource_name", "model", "planning_year"],
             on=merge_by,
             how="left",
         )
@@ -1588,14 +1600,13 @@ def chart_total_gen_line(
     merge_by = list(set(merge_by))
     group_by = list(set(group_by))
     if cap is not None:
-        _cap = (
-            cap.query("unit=='MW'")
-            .groupby(
-                merge_by,
-                as_index=False,
-            )["end_value"]
-            .sum()
-        )
+        _cap = cap.copy()
+        if "unit" in cap.columns:
+            _cap = _cap.query("unit=='MW'")
+        _cap = _cap.groupby(
+            merge_by,
+            as_index=False,
+        )["end_value"].sum()
         _gen = pd.merge(
             gen,
             _cap,
@@ -1643,6 +1654,8 @@ def chart_total_gen_line(
             .title(title_case(color))
             .sort(order_dict().get(color))
         )
+    if "_case" in data.columns:
+        data["_case"] = data["_case"].map(WRAPPED_CASE_NAME_MAP)
     chart = (
         alt.Chart(data)
         .mark_line(point=True)
@@ -1802,6 +1815,8 @@ def chart_avg_gen_variation_line(
     group_by = []
     _tooltips = [
         alt.Tooltip(VAR_ABBR_MAP["value"], title="Generation (TWh)", format=",.0f"),
+        alt.Tooltip("min", title="Min"),
+        alt.Tooltip("max", title="Max"),
     ]
 
     for var in [x_var, col_var, row_var, color]:
@@ -1848,6 +1863,7 @@ def chart_avg_gen_variation_line(
             y=alt.Y("sum(max)").title("Generation (TWh)"),
             y2=alt.Y2("sum(min)"),
             color=_color,
+            tooltip=_tooltips,
         )
         .properties(width=width, height=height)
     )
@@ -1888,9 +1904,9 @@ def calc_mean_annual_cap(
     if new_build and existing:
         _cap = cap.copy()
     elif new_build:
-        _cap = cap.query("new_build == True and unit == 'MW'")
+        _cap = cap.query("new_build == True")
     elif existing:
-        _cap = cap.query("new_build == False and unit == 'MW'")
+        _cap = cap.query("new_build == False")
     elif "unit" in cap.columns:
         _cap = cap.query("unit == 'MW'")
     else:
@@ -2655,16 +2671,14 @@ def chart_cap_factor_scatter(
         group_by.append(row_var)
     merge_by = list(set(merge_by))
     group_by = list(set(group_by))
-
-    _cap = (
-        cap.query("unit=='MW'")
-        .groupby(
-            merge_by,
-            # ["tech_type", "resource_name", "model", "planning_year"],
-            as_index=False,
-        )["end_value"]
-        .sum()
-    )
+    _cap = cap.copy()
+    if "unit" in cap.columns:
+        _cap = _cap.query("unit=='MW'")
+    _cap = _cap.groupby(
+        merge_by,
+        # ["tech_type", "resource_name", "model", "planning_year"],
+        as_index=False,
+    )["end_value"].sum()
     _cap = _cap.query("end_value >= 50")
     _gen = pd.merge(
         gen,
