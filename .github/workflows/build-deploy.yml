@@ -31,8 +31,6 @@ jobs:
       # Build
       # =====================================================
       - uses: quarto-dev/quarto-actions/setup@v2
-        with:
-          version: pre-release
 
       - name: Build page with Quarto
         run: |
