@@ -228,6 +228,7 @@ all_techs = [
     "Solar",
     "Wind",
 ]
+all_zones = sorted(list(region_map.keys()))
 ```
 # {.sidebar}
 ```{python}
@@ -273,6 +274,14 @@ ui.input_selectize(
     multiple=True,
     options={"plugins": ["clear_button"]},
 )
+ui.input_selectize(
+    "zones",
+    "Model Agg Zones",
+    choices=all_zones,
+    selected=all_zones,
+    multiple=True,
+    options={"plugins": ["clear_button"]},
+)
 
 ```
 ```{python}
@@ -306,7 +315,8 @@ def cap_cases():
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models()))
-        & (df["tech_type"].isin(input.tech_type())),
+        & (df["tech_type"].isin(input.tech_type()))
+        & (df["agg_zone"].isin(input.zones())),
         :,
     ]
 
@@ -321,7 +331,8 @@ def gen_cases():
         (df["case"].isin(case_list()))
         & (df["planning_year"].isin(int_years()))
         & (df["model"].isin(input.models()))
-        & (df["tech_type"].isin(input.tech_type())),
+        & (df["tech_type"].isin(input.tech_type()))
+        & (df["agg_zone"].isin(input.zones())),
         :,
     ]
 
@@ -405,7 +416,7 @@ def order_dict():
         ],
         "model": list(input.models()),
         "planning_year": list(int_years()),
-        "tech_type": TECH_ORDER,
+        "tech_type": list(input.tech_type()),
     }
 
 
