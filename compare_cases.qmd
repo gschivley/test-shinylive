@@ -366,7 +366,7 @@ def op_costs_model_data():
     df = op_costs_model.copy()
     df = df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin(list(input.year()) + ["NPV"]))
+        & (df["planning_year"].isin([str(y) for y in input.year()] + ["NPV"]))
         & (df["model"].isin(input.models())),
         :,
     ]
@@ -379,7 +379,7 @@ def op_costs_data():
     df = op_costs.copy()
     df = df.loc[
         (df["case"].isin(case_list()))
-        & (df["planning_year"].isin(list(input.year()) + ["NPV"]))
+        & (df["planning_year"].isin([str(y) for y in input.year()] + ["NPV"]))
         & (df["model"].isin(input.models())),
         :,
     ]
@@ -459,7 +459,15 @@ ui.input_selectize(
     "Column",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in [
+            "model",
+            "case",
+            "planning_year",
+            "tech_type",
+            "agg_zone",
+            "zone",
+            "None",
+        ]
     },
     selected="case",
     width="125px",
@@ -469,7 +477,15 @@ ui.input_selectize(
     "Row",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in [
+            "model",
+            "case",
+            "planning_year",
+            "tech_type",
+            "agg_zone",
+            "zone",
+            "None",
+        ]
     },
     selected="planning_year",
     width="150px",
@@ -591,7 +607,15 @@ ui.input_selectize(
     "Column",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in [
+            "model",
+            "case",
+            "planning_year",
+            "tech_type",
+            "zone",
+            "agg_zone",
+            "None",
+        ]
     },
     selected="tech_type",
     width="125px",
@@ -601,7 +625,15 @@ ui.input_selectize(
     "Row",
     choices={
         c: title_case(c)
-        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+        for c in [
+            "model",
+            "case",
+            "planning_year",
+            "tech_type",
+            "zone",
+            "agg_zone",
+            "None",
+        ]
     },
     selected="case",
     width="150px",
