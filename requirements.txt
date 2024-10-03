@@ -1,6 +1,11 @@
 altair
 numpy
 pandas
+PyYAML
+shiny==1.1.0
+shinywidgets
+nbformat
+jupyter
 pyodide-http
 anywidget
 fastparquet
