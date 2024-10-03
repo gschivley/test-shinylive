@@ -3,3 +3,10 @@ shinywidgets
 shinylive
 nbformat
 jupyter
+altair
+numpy
+pandas
+pyodide-http
+anywidget
+fastparquet
+geopandas
