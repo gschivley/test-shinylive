@@ -1276,13 +1276,13 @@ def config_chart_row_col(chart: alt.Chart, row_var: str, col_var: str) -> alt.Ch
             .header(titleFontSize=20, labelFontSize=15)
         )
     chart = chart.configure_axis(labelFontSize=15, titleFontSize=15).configure_legend(
-        titleFontSize=20, labelFontSize=16
+        titleFontSize=20, labelFontSize=16, labelLimit=250
     )
     if "case" in [row_var, col_var]:
         chart = (
             chart.configure(lineBreak="\n")
             .configure_axis(labelFontSize=15, titleFontSize=15)
-            .configure_legend(titleFontSize=20, labelFontSize=16)
+            .configure_legend(titleFontSize=20, labelFontSize=16, labelLimit=250)
         )
     return chart
 
