@@ -661,6 +661,7 @@ ui.input_selectize(
     width="125px",
 )
 ui.input_switch("cap_line_zero_y", "Zero Y-Axis", True)
+ui.input_switch("cap_line_independent_y", "Independent Y-Axis", False)
 ui.input_slider("cap_line_width", "Scale plot width", 0, 200, 100)
 ui.input_slider("cap_line_height", "Scale plot height", 0, 200, 100)
 
@@ -711,6 +712,7 @@ def alt_gen_lines():
         height=200 * (input.cap_line_height() / 100),
         width=200 * (input.cap_line_width() / 100),
         zero_y=input.cap_line_zero_y(),
+        independent_y=input.cap_line_independent_y(),
     )
     return chart
 
@@ -1317,9 +1319,10 @@ def chart_total_cap(
     cap_data["o"] = cap_data["tt"].map(TECH_STACK_ORDER)
 
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in cap_data["tt"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1375,9 +1378,10 @@ def chart_total_cap_line(
     cap_data = cap_data.rename(columns=VAR_ABBR_MAP)
 
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in cap_data["tt"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1440,9 +1444,10 @@ def chart_avg_new_tech_variation(
     for col in ["end_value", "min", "max"]:
         data[col] = (data[col] / 1000).round(0)
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tech_type"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1538,9 +1543,10 @@ def chart_avg_new_tech_variation_lines(
     for col in ["end_value", "min", "max"]:
         data[col] = (data[col] / 1000).round(0)
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tech_type"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1673,9 +1679,10 @@ def chart_total_gen(
     data = data.rename(columns=VAR_ABBR_MAP)
     data["o"] = data["tt"].map(TECH_STACK_ORDER)
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tt"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1718,6 +1725,7 @@ def chart_total_gen_line(
     color="model",
     order=None,
     zero_y=False,
+    independent_y=False,
     width=200,
     height=200,
 ) -> alt.Chart:
@@ -1780,9 +1788,10 @@ def chart_total_gen_line(
 
     # data["o"] = data["tt"].map(TECH_STACK_ORDER)
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tt"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
     else:
@@ -1809,6 +1818,8 @@ def chart_total_gen_line(
         .properties(width=width, height=height)
     )
     chart = config_chart_row_col(chart, row_var, col_var)
+    if independent_y:
+        chart = chart.resolve_scale(y="independent")
     return chart
 
 
@@ -1854,10 +1865,11 @@ def chart_avg_gen_variation(
     # if bars_only:
     #     return bars
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tech_type"].unique()}
         _color = (
-            alt.Color("tt")
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-            .title(title_case("tech_type"))
+            alt.Color(VAR_ABBR_MAP[color])
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
+            .title(title_case(color))
         )
     else:
         _color = (
@@ -1973,10 +1985,11 @@ def chart_avg_gen_variation_line(
         data[col] = (data[col] / 1000000).round(0)
 
     if color == "tech_type":
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tech_type"].unique()}
         _color = (
-            alt.Color("tt")
-            .scale(domain=list(COLOR_MAP.keys()), range=list(COLOR_MAP.values()))
-            .title(title_case("tech_type"))
+            alt.Color(VAR_ABBR_MAP[color])
+            .scale(domain=list(cm.keys()), range=list(cm.values()))
+            .title(title_case(color))
         )
     else:
         _color = (
