@@ -103,6 +103,7 @@ WRAPPED_CASE_NAME_MAP = {
     "20-week-myopic": "CO2 cap\n20-week",
     "full-current-policies": "Current policy\n",
     "full-current-policies-retire": "Current policy\nretire",
+    "full-current-policies-retire-low-gas": "Current policy\nretire low gas",
     "full-current-policies-commit": "Current policy\nunit commit",
     "20-week-foresight-current-policy": "Current policy\n20-week foresight",
     "20-week-myopic-current-policy": "Current policy\n20-week",
@@ -122,6 +123,7 @@ CASE_NAME_MAP = {
     "20-week-myopic": "CO2 cap 20-week",
     "full-current-policies": "Current policy",
     "full-current-policies-retire": "Current policy retire",
+    "full-current-policies-retire-low-gas": "Current policy retire low gas",
     "full-current-policies-commit": "Current policy unit commit",
     "20-week-foresight-current-policy": "Current policy 20-week foresight",
     "20-week-myopic-current-policy": "Current policy 20-week",
@@ -207,6 +209,7 @@ base_case_list = {c: CASE_NAME_MAP[c] for c in _base_case_list}
 _cp_case_list = [
     "full-current-policies",
     "full-current-policies-retire",
+    "full-current-policies-retire-low-gas",
     "full-current-policies-commit",
     "20-week-foresight-current-policy",
     "20-week-myopic-current-policy",
