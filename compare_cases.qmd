@@ -1848,7 +1848,9 @@ def chart_total_gen_line(
     group_by = []
     merge_by = ["resource_name"]
     _tooltips = [
-        alt.Tooltip(VAR_ABBR_MAP["end_value"], title="Capacity (GW)", format=",.0f"),
+        alt.Tooltip(
+            f"sum({VAR_ABBR_MAP['value']})", title="Generation (TWh)", format=",.0f"
+        ),
     ]
 
     for var in [x_var, col_var, row_var, color, stroke, shape, detail]:
@@ -1885,10 +1887,10 @@ def chart_total_gen_line(
         _tooltips.extend(
             [
                 alt.Tooltip("capacity_factor", title="Capacity Factor"),
-                alt.Tooltip("ev", title="Capacity (MW)", format=",.0f"),
+                alt.Tooltip("sum(ev)", title="Capacity (GW)", format=",.0f"),
             ]
         )
-
+        data["end_value"] /= 1000
     else:
         data = gen.groupby(list(set(group_by)), as_index=False)["value"].sum()
     # midx = pd.MultiIndex.from_product(
