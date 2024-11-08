@@ -1454,22 +1454,12 @@ def chart_total_cap_line(
             .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
-    elif color is None:
-        _color = alt.Undefined
-    else:
+    elif color is not None:
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
             .title(title_case(color))
             .sort(order_dict().get(color))
         )
-    if detail is not None:
-        _detail = VAR_ABBR_MAP[detail]
-    else:
-        _detail = alt.Undefined
-    if stroke is not None:
-        _stroke = alt.StrokeDash(VAR_ABBR_MAP[stroke]).title(title_case(stroke))
-    else:
-        _stroke = alt.Undefined
     chart = (
         alt.Chart(cap_data)
         .mark_line(point=shape is None)
@@ -1479,15 +1469,23 @@ def chart_total_cap_line(
             # .sort(order_dict().get("planning_year"))
             # .title(title_case("planning_year")),
             y=alt.Y("sum(ev)").title("Capacity (GW)").scale(type=scale.lower()),
-            color=_color,
-            detail=_detail,
-            strokeDash=_stroke,
+            # color=_color,
+            # detail=_detail,
+            # strokeDash=_stroke,
             tooltip=_tooltips,
             # column="tt",
             # row="c",
         )
         .properties(width=width, height=height)
     )
+    if color is not None:
+        chart = chart.encode(color=_color)
+    if detail is not None:
+        chart = chart.encode(detail=VAR_ABBR_MAP[detail])
+    if stroke is not None:
+        chart = chart.encode(
+            strokeDash=alt.StrokeDash(VAR_ABBR_MAP[stroke]).title(title_case(stroke))
+        )
     if shape is not None:
         point = (
             alt.Chart(cap_data)
@@ -1498,11 +1496,16 @@ def chart_total_cap_line(
                 .title(title_case(x_var)),
                 y=alt.Y("sum(ev)").title("Capacity (GW)").scale(type=scale.lower()),
                 shape=alt.Shape(VAR_ABBR_MAP[shape]).title(title_case(shape)),
-                color=_color,
-                detail=_detail,
+                # color=_color,
+                # detail=_detail,
                 tooltip=_tooltips,
             )
         )
+        if color is not None:
+            point = point.encode(color=_color)
+        if detail is not None:
+            point = point.encode(detail=VAR_ABBR_MAP[detail])
+
         chart = chart + point
 
     chart = config_chart_row_col(chart, row_var, col_var)
@@ -1903,9 +1906,7 @@ def chart_total_gen_line(
             .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
-    elif color is None:
-        _color = alt.Undefined
-    else:
+    elif color is not None:
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
             .title(title_case(color))
@@ -1931,13 +1932,22 @@ def chart_total_gen_line(
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
             y=alt.Y("v").title("Generation (TWh)").scale(zero=zero_y),
-            color=_color,
-            detail=_detail,
-            strokeDash=_stroke,
+            # color=_color,
+            # detail=_detail,
+            # strokeDash=_stroke,
             tooltip=_tooltips,
         )
         .properties(width=width, height=height)
     )
+    if color is not None:
+        chart = chart.encode(color=_color)
+    if detail is not None:
+        chart = chart.encode(detail=VAR_ABBR_MAP[detail])
+    if stroke is not None:
+        chart = chart.encode(
+            strokeDash=alt.StrokeDash(VAR_ABBR_MAP[stroke]).title(title_case(stroke))
+        )
+
     if shape is not None:
         point = (
             alt.Chart(data)
@@ -1948,11 +1958,16 @@ def chart_total_gen_line(
                 .title(title_case(x_var)),
                 y=alt.Y("sum(v)").scale(zero=zero_y),
                 shape=alt.Shape(VAR_ABBR_MAP[shape]).title(title_case(shape)),
-                color=_color,
-                detail=_detail,
+                # color=_color,
+                # detail=_detail,
                 tooltip=_tooltips,
             )
         )
+        if color is not None:
+            point = point.encode(color=_color)
+        if detail is not None:
+            point = point.encode(detail=VAR_ABBR_MAP[detail])
+
         chart = chart + point
     chart = config_chart_row_col(chart, row_var, col_var)
     if independent_y:
