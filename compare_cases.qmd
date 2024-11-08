@@ -669,6 +669,36 @@ ui.input_selectize(
     selected="model",
     width="125px",
 )
+ui.input_selectize(
+    "cap_line_stroke",
+    "Dash",
+    choices={
+        c: title_case(c)
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+    },
+    selected="None",
+    width="125px",
+)
+ui.input_selectize(
+    "cap_line_shape",
+    "Shape",
+    choices={
+        c: title_case(c)
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+    },
+    selected="None",
+    width="125px",
+)
+ui.input_selectize(
+    "cap_line_detail",
+    "Detail",
+    choices={
+        c: title_case(c)
+        for c in ["model", "case", "planning_year", "tech_type", "agg_zone", "None"]
+    },
+    selected="None",
+    width="125px",
+)
 ui.input_switch("cap_line_zero_y", "Zero Y-Axis", True)
 ui.input_switch("cap_line_independent_y", "Independent Y-Axis", False)
 ui.input_slider("cap_line_width", "Scale plot width", 0, 200, 100)
@@ -690,6 +720,10 @@ def alt_cap_lines():
         col_var=input.cap_line_col_var(),
         row_var=input.cap_line_row_var(),
         color=input.cap_line_color(),
+        stroke=input.cap_line_stroke(),
+        shape=input.cap_line_shape(),
+        detail=input.cap_line_detail(),
+        independent_y=input.cap_line_independent_y(),
         height=200 * (input.cap_line_height() / 100),
         width=200 * (input.cap_line_width() / 100),
     )
@@ -718,6 +752,9 @@ def alt_gen_lines():
         col_var=input.cap_line_col_var(),
         row_var=input.cap_line_row_var(),
         color=input.cap_line_color(),
+        stroke=input.cap_line_stroke(),
+        shape=input.cap_line_shape(),
+        detail=input.cap_line_detail(),
         height=200 * (input.cap_line_height() / 100),
         width=200 * (input.cap_line_width() / 100),
         zero_y=input.cap_line_zero_y(),
@@ -781,10 +818,10 @@ ui.input_slider("avg_height", "Scale plot height", 0, 200, 100)
 # | title: New-build capacity
 @render_altair
 def alt_avg_cap():
-    # region_avg_cap = calc_mean_annual_cap(cap_cases(), by_agg_zone=True)
+    # region_avg_cap = calc_mean_annual_new_cap(cap_cases(), by_agg_zone=True)
     chart = chart_avg_new_tech_variation(
-        calc_mean_annual_cap(),
-        # calc_mean_annual_cap(filter_data(cap), by_agg_zone=True),
+        calc_mean_annual_total_new_cap(),
+        # calc_mean_annual_new_cap(filter_data(cap), by_agg_zone=True),
         row_var=input.avg_row_var(),  # "agg_zone",
         x_var=input.avg_x_var(),  # "case",
         col_var=input.avg_col_var(),
@@ -822,7 +859,7 @@ def alt_mean_gen():
 # | title: Capacity data
 @render.data_frame
 def avg_cap_df():
-    return render.DataTable(calc_mean_annual_cap(), filters=True)
+    return render.DataTable(calc_mean_annual_total_new_cap(), filters=True)
 
 ```
 ```{python}
@@ -867,9 +904,25 @@ ui.input_slider("avg_line_height", "Scale plot height", 0, 200, 100)
 ```{python}
 # | title: New-build capacity
 @render_altair
-def alt_mean_cap_line():
+def alt_mean_new_cap_line():
     chart = chart_avg_new_tech_variation_lines(
-        calc_mean_annual_total_cap(),
+        calc_mean_annual_total_new_cap(),
+        row_var=input.avg_line_row_var(),
+        col_var=input.avg_line_col_var(),
+        color=input.avg_line_color(),
+        independent_y_scale=input.avg_line_independent_y_scale(),
+        height=200 * (input.avg_line_height() / 100),
+        width=200 * (input.avg_line_width() / 100),
+    )
+    return chart
+```
+
+```{python}
+# | title: Total capacity
+@render_altair
+def alt_mean_total_cap_line():
+    chart = chart_avg_new_tech_variation_lines(
+        calc_mean_annual_total_all_cap(),
         row_var=input.avg_line_row_var(),
         col_var=input.avg_line_col_var(),
         color=input.avg_line_color(),
@@ -898,7 +951,7 @@ def alt_mean_gen_line():
 # | title: Capacity data
 @render.data_frame
 def avg_cap_line_df():
-    return render.DataTable(calc_mean_annual_total_cap(), filters=True)
+    return render.DataTable(calc_mean_annual_total_new_cap(), filters=True)
 
 ```
 # Transmission
@@ -1360,21 +1413,29 @@ def chart_total_cap_line(
     col_var="tech_type",
     row_var="case",
     color="model",
+    stroke=None,
+    shape=None,
+    detail=None,
     order=None,
     scale="linear",
+    independent_y=False,
     width=alt.Step(40),
     height=200,
 ) -> alt.Chart:
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
     row_var = var_to_none(row_var)
+    color = var_to_none(color)
+    stroke = var_to_none(stroke)
+    shape = var_to_none(shape)
+    detail = var_to_none(detail)
 
     group_by = []
     _tooltips = [
         alt.Tooltip(VAR_ABBR_MAP["end_value"], title="Capacity (GW)", format=",.0f"),
     ]
 
-    for var in [x_var, col_var, row_var, color]:
+    for var in [x_var, col_var, row_var, color, stroke, shape, detail]:
         if var is not None:
             group_by.append(var)
             _tooltips.append(alt.Tooltip(VAR_ABBR_MAP[var], title=title_case(var)))
@@ -1393,15 +1454,25 @@ def chart_total_cap_line(
             .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
+    elif color is None:
+        _color = alt.Undefined
     else:
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
             .title(title_case(color))
             .sort(order_dict().get(color))
         )
+    if detail is not None:
+        _detail = VAR_ABBR_MAP[detail]
+    else:
+        _detail = alt.Undefined
+    if stroke is not None:
+        _stroke = alt.StrokeDash(VAR_ABBR_MAP[stroke]).title(title_case(stroke))
+    else:
+        _stroke = alt.Undefined
     chart = (
         alt.Chart(cap_data)
-        .mark_line(point=True)
+        .mark_line(point=shape is None)
         .encode(
             x=alt.X(VAR_ABBR_MAP[x_var]).axis(format="04d").title(title_case(x_var)),
             # x=alt.X("y")
@@ -1409,14 +1480,36 @@ def chart_total_cap_line(
             # .title(title_case("planning_year")),
             y=alt.Y("sum(ev)").title("Capacity (GW)").scale(type=scale.lower()),
             color=_color,
+            detail=_detail,
+            strokeDash=_stroke,
             tooltip=_tooltips,
             # column="tt",
             # row="c",
         )
         .properties(width=width, height=height)
     )
+    if shape is not None:
+        point = (
+            alt.Chart(cap_data)
+            .mark_point(filled=True)
+            .encode(
+                x=alt.X(VAR_ABBR_MAP[x_var])
+                .axis(format="04d")
+                .title(title_case(x_var)),
+                y=alt.Y("sum(ev)").title("Capacity (GW)").scale(type=scale.lower()),
+                shape=alt.Shape(VAR_ABBR_MAP[shape]).title(title_case(shape)),
+                color=_color,
+                detail=_detail,
+                tooltip=_tooltips,
+            )
+        )
+        chart = chart + point
+
     chart = config_chart_row_col(chart, row_var, col_var)
-    return chart
+    if independent_y is True:
+        return chart.resolve_scale(y="independent")
+    else:
+        return chart
 
 
 def chart_avg_new_tech_variation(
@@ -1732,6 +1825,9 @@ def chart_total_gen_line(
     col_var="tech_type",
     row_var="case",
     color="model",
+    stroke=None,
+    shape=None,
+    detail=None,
     order=None,
     zero_y=False,
     independent_y=False,
@@ -1741,6 +1837,10 @@ def chart_total_gen_line(
     x_var = var_to_none(x_var)
     col_var = var_to_none(col_var)
     row_var = var_to_none(row_var)
+    color = var_to_none(color)
+    stroke = var_to_none(stroke)
+    shape = var_to_none(shape)
+    detail = var_to_none(detail)
 
     group_by = []
     merge_by = ["resource_name"]
@@ -1748,7 +1848,7 @@ def chart_total_gen_line(
         alt.Tooltip(VAR_ABBR_MAP["end_value"], title="Capacity (GW)", format=",.0f"),
     ]
 
-    for var in [x_var, col_var, row_var, color]:
+    for var in [x_var, col_var, row_var, color, stroke, shape, detail]:
         if var is not None:
             group_by.append(var)
             merge_by.append(var)
@@ -1803,6 +1903,8 @@ def chart_total_gen_line(
             .scale(domain=list(cm.keys()), range=list(cm.values()))
             .title(title_case(color))
         )
+    elif color is None:
+        _color = alt.Undefined
     else:
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
@@ -1812,9 +1914,17 @@ def chart_total_gen_line(
     data = data.rename(columns=VAR_ABBR_MAP)
     # if "_case" in data.columns:
     #     data["_case"] = data["_case"].map(WRAPPED_CASE_NAME_MAP)
+    if detail is not None:
+        _detail = VAR_ABBR_MAP[detail]
+    else:
+        _detail = alt.Undefined
+    if stroke is not None:
+        _stroke = alt.StrokeDash(VAR_ABBR_MAP[stroke]).title(title_case(stroke))
+    else:
+        _stroke = alt.Undefined
     chart = (
         alt.Chart(data)
-        .mark_line(point=True)
+        .mark_line(point=shape is None)
         .encode(
             x=alt.X(VAR_ABBR_MAP[x_var])
             .axis(format="04d")
@@ -1822,10 +1932,28 @@ def chart_total_gen_line(
             .title(title_case(x_var)),
             y=alt.Y("v").title("Generation (TWh)").scale(zero=zero_y),
             color=_color,
+            detail=_detail,
+            strokeDash=_stroke,
             tooltip=_tooltips,
         )
         .properties(width=width, height=height)
     )
+    if shape is not None:
+        point = (
+            alt.Chart(data)
+            .mark_point(filled=True)
+            .encode(
+                x=alt.X(VAR_ABBR_MAP[x_var])
+                .axis(format="04d")
+                .title(title_case(x_var)),
+                y=alt.Y("sum(v)").scale(zero=zero_y),
+                shape=alt.Shape(VAR_ABBR_MAP[shape]).title(title_case(shape)),
+                color=_color,
+                detail=_detail,
+                tooltip=_tooltips,
+            )
+        )
+        chart = chart + point
     chart = config_chart_row_col(chart, row_var, col_var)
     if independent_y:
         chart = chart.resolve_scale(y="independent")
@@ -2048,7 +2176,7 @@ def chart_avg_gen_variation_line(
 
 ```{python}
 @reactive.calc
-def calc_mean_annual_cap(
+def calc_mean_annual_new_cap(
     # cap: pd.DataFrame,
     # by_region: bool = False,
     # by_agg_zone: bool = False,
@@ -2166,7 +2294,125 @@ def calc_mean_annual_cap(
 
 
 @reactive.calc
-def calc_mean_annual_total_cap(
+def calc_mean_annual_new_existing_cap(
+    # cap: pd.DataFrame,
+    # by_region: bool = False,
+    # by_agg_zone: bool = False,
+    # new_build: bool = True,
+    # existing: bool = False,
+    # value_col: str = "end_value",
+) -> pd.DataFrame:
+    by_region: bool = False
+    by_agg_zone: bool = True
+    new_build: bool = True
+    existing: bool = True
+    value_col: str = "end_value"
+    cap = cap_cases()
+    idx = pd.IndexSlice
+    years = sorted(cap.planning_year.unique(), reverse=True)
+    by = ["case", "tech_type", "planning_year"]
+    if by_region:
+        by.append("zone")
+    if by_agg_zone:
+        by.append("agg_zone")
+    if new_build and existing:
+        _cap = cap.copy()
+    elif new_build:
+        _cap = cap.query("new_build == True")
+    elif existing:
+        _cap = cap.query("new_build == False")
+    elif "unit" in cap.columns:
+        _cap = cap.query("unit == 'MW'")
+    else:
+        _cap = cap.copy()
+    idx_cols = ["case", "tech_type"]
+    if by_region:
+        idx_cols.append("zone")
+    if by_agg_zone:
+        idx_cols.append("agg_zone")
+
+    df_list = []
+
+    # Need to make sure that all techs are in all regions for cases submitted by each
+    # model. Reindexing across all models screws up the min/max error bars when a model
+    # has not submitted a case because the minimum becomes 0.
+    for model in cap.model.unique():
+        _model_cap = _cap.query("model==@model")
+        midx = pd.MultiIndex.from_product(
+            [_model_cap[c].unique() for c in by], names=by
+        )
+        _annual_cap = (
+            _model_cap.query("model==@model")
+            .groupby(by)[value_col]
+            .sum()
+            .reindex(midx)  # , fill_value=0)
+            .reset_index()
+            .set_index(idx_cols)
+        )
+        _annual_cap["model"] = model
+        df_list.append(_annual_cap)
+    annual_cap = pd.concat(df_list)
+    if not new_build and not by_agg_zone:
+        return (
+            annual_cap.reset_index()
+            .groupby(["case", "planning_year", "tech_type"], as_index=False)[value_col]
+            .mean()
+            .round({"end_value": 1})
+        )
+    elif not new_build and by_agg_zone:
+        return (
+            annual_cap.reset_index()
+            .groupby(
+                ["case", "planning_year", "tech_type", "agg_zone"], as_index=False
+            )[value_col]
+            .mean()
+            .round({"end_value": 1})
+        )
+    for year, prev_year in zip(years[:-1], years[1:]):
+        annual_cap.loc[annual_cap["planning_year"] == year, value_col] = annual_cap.loc[
+            annual_cap["planning_year"] == year, value_col
+        ].sub(
+            annual_cap.loc[annual_cap["planning_year"] == prev_year, value_col],
+            fill_value=0,
+        )
+
+    by = ["case", "tech_type", "planning_year"]
+    if by_region:
+        by.append("zone")
+    if by_agg_zone:
+        by.append("agg_zone")
+    annual_cap_mean = pd.DataFrame(annual_cap.groupby(by)[value_col].mean())
+
+    by = ["case", "tech_type", "model"]
+    min_max_by = ["case", "tech_type"]
+    if by_region:
+        by.append("zone")
+        min_max_by.append("zone")
+    if by_agg_zone:
+        by.append("agg_zone")
+        min_max_by.append("agg_zone")
+    for year in cap.planning_year.unique():
+        annual_cap_mean.loc[idx[:, :, year], "min"] = (
+            annual_cap.query("planning_year <= @year")
+            .groupby(by)[value_col]
+            .sum()
+            .groupby(min_max_by)
+            .min()
+            .values
+        )
+        annual_cap_mean.loc[idx[:, :, year], "max"] = (
+            annual_cap.query("planning_year <= @year")
+            .groupby(by)[value_col]
+            .sum()
+            .groupby(min_max_by)
+            .max()
+            .values
+        )
+    return annual_cap_mean.round(1).reset_index()
+
+
+@reactive.calc
+def calc_mean_annual_total_new_cap(
     # gen: pd.DataFrame,
     # by_region: bool = False,
     # by_agg_zone: bool = False,
@@ -2175,7 +2421,37 @@ def calc_mean_annual_total_cap(
 ) -> pd.DataFrame:
     # Use calculated average values added in each period to get the
     # cumulative cap for line charts
-    df = calc_mean_annual_cap()
+    df = calc_mean_annual_new_cap()
+    df_list = []
+    by = ["case", "agg_zone", "tech_type"]
+    for year in df.planning_year.unique():
+        print(year)
+        filt_df = df.query("planning_year <= @year")
+        _df = filt_df.groupby(by)[["end_value"]].sum()
+        _df["planning_year"] = year
+
+        min_max_df = df.query("planning_year == @year").set_index(by)
+        _df["min"] = min_max_df["min"]
+        _df["max"] = min_max_df["max"]
+
+        print(_df.head())
+        df_list.append(_df)
+
+    data = pd.concat(df_list).reset_index()
+    return data
+
+
+@reactive.calc
+def calc_mean_annual_total_all_cap(
+    # gen: pd.DataFrame,
+    # by_region: bool = False,
+    # by_agg_zone: bool = False,
+    # new_build: bool = False,
+    # value_col: str = "value",
+) -> pd.DataFrame:
+    # Use calculated average values added in each period to get the
+    # cumulative cap for line charts
+    df = calc_mean_annual_new_existing_cap()
     df_list = []
     by = ["case", "agg_zone", "tech_type"]
     for year in df.planning_year.unique():
