@@ -1902,7 +1902,7 @@ def chart_total_gen_line(
 
     # data["o"] = data["tt"].map(TECH_STACK_ORDER)
     if color == "tech_type":
-        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tt"].unique()}
+        cm = {k: v for k, v in COLOR_MAP.items() if k in data["tech_type"].unique()}
         _color = (
             alt.Color(VAR_ABBR_MAP[color])
             .scale(domain=list(cm.keys()), range=list(cm.values()))
@@ -2849,7 +2849,7 @@ def chart_tx_expansion(
 
     group_by = []
     _tooltips = [
-        alt.Tooltip("sum(v)", format=",.1f", title="Period GW"),
+        alt.Tooltip("sum(v)", format=",.0f", title="Period GW-km"),
     ]
 
     for var in [x_var, col_var, row_var, "planning_year"]:
@@ -2907,7 +2907,7 @@ def chart_tx_expansion(
             .axis(labelLimit=250)
             .sort(order_dict().get(x_var))
             .title(title_case(x_var)),
-            y=alt.Y("sum(v)").title("Transmission (GW)"),
+            y=alt.Y("sum(v)").title("Transmission (GW-km)"),
             color=alt.Color("m:N").title(title_case("model")),
             opacity=alt.Opacity("y:O", sort="descending").title(
                 title_case("planning_year")
@@ -2992,6 +2992,7 @@ def chart_tx_map(
 
     model_figs = []
     data = tx_exp.copy()
+    data["value"] /= 1000
     for model in order_dict().get(facet_col, []):
         _data = data.loc[data[facet_col] == model, :]
         background = (
@@ -3013,10 +3014,10 @@ def chart_tx_map(
                 strokeWidth="sum(value)",
                 color=alt.Color("sum(value):Q")
                 .scale(scheme=colormap, reverse=reverse_colors)
-                .title("Expansion (MW)"),
+                .title("Expansion (GW-km)"),
                 tooltip=[
                     alt.Tooltip("line_name", title="Line Name"),
-                    alt.Tooltip("sum(value)", title="Expansion (MW)", format=",.0f"),
+                    alt.Tooltip("sum(value)", title="Expansion (GW-km)", format=",.0f"),
                 ],
             )
             .project(type="albersUsa")
