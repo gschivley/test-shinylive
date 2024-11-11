@@ -1462,7 +1462,7 @@ def chart_total_cap_line(
         )
     chart = (
         alt.Chart(cap_data)
-        .mark_line(point=shape is None)
+        .mark_line(point=shape is None and detail is None)
         .encode(
             x=alt.X(VAR_ABBR_MAP[x_var]).axis(format="04d").title(title_case(x_var)),
             # x=alt.X("y")
@@ -1927,7 +1927,7 @@ def chart_total_gen_line(
         _stroke = alt.Undefined
     chart = (
         alt.Chart(data)
-        .mark_line(point=shape is None)
+        .mark_line(point=shape is None and detail is None)
         .encode(
             x=alt.X(VAR_ABBR_MAP[x_var])
             .axis(format="04d")
