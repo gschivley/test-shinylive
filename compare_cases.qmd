@@ -224,7 +224,7 @@ _cp_case_list = [
     "20-week-myopic-current-policy",
 ]
 cp_case_list = {c: CASE_NAME_MAP[c] for c in _cp_case_list}
-all_models = ["GenX", "SWITCH", "TEMOA", "USENSYS"]
+all_models = ["GenX", "Switch", "TEMOA", "USENSYS"]
 all_years = [2027, 2030, 2035, 2040, 2045, 2050]
 all_techs = [
     "Battery",
